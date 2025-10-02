@@ -1,4 +1,5 @@
 use crate::inner_prelude::*;
+use log::{trace, debug, info, warn, error};
 
 #[derive(Debug, Clone)]
 pub struct Context {
@@ -35,9 +36,19 @@ impl Context {
     /// Executes an instruction and updates the context
     fn execute_instruction(&mut self, op: &Instruction) -> Result<(), ContextUpdateError> {
         use Instruction as Op;
+
+        trace!(
+            "PC={} | Current={:?} | Stack={:?} | Executing {:?}",
+            self.pc.to_idx(),
+            self.current,
+            self.stack,
+            op
+        );
+
         match op {
             Op::Add | Op::Sub | Op::Mul | Op::Div | Op::Lt | Op::Le => {
                 let [op1, op2] = self.take_ops()?;
+                debug!("Operands: {:?}, {:?}", op1, op2);
                 let i1 = op1.to_int().ok_or(ContextUpdateError::TypeError {
                     op_num: 1,
                     operand: op1,
@@ -59,9 +70,11 @@ impl Context {
                     _ => unreachable!(),
                 };
                 self.current = res;
+                trace!("Result of {:?} => {:?}", op, self.current);
             }
             Op::And | Op::Or => {
                 let [op1, op2] = self.take_ops()?;
+                debug!("Operands: {:?}, {:?}", op1, op2);
                 let b1 = op1.to_bool().ok_or_else(|| ContextUpdateError::TypeError {
                     op_num: 1,
                     operand: op1,
@@ -78,6 +91,7 @@ impl Context {
                     _ => unreachable!(),
                 };
                 self.current = res;
+                trace!("Result of {:?} => {:?}", op, self.current);
             }
             Op::Not => {
                 let [operand] = self.take_ops()?;
@@ -87,18 +101,25 @@ impl Context {
                         operand,
                         expected_value: ConstType::Bool,
                     })?);
+                trace!("Result of {:?} => {:?}", op, self.current);
             }
-            Op::Push => self.stack.push(self.current.clone()),
+            Op::Push => {
+                self.stack.push(self.current.clone());
+                trace!("Pushed {:?} to stack", self.current);
+            }
             Op::Pop => {
                 let [_, op] = self.take_ops()?;
                 self.current = op;
+                trace!("Popped {:?} from stack", self.current);
             }
             &Op::Get(idx) => {
                 let reg_index = idx.0 as usize;
                 if reg_index < self.stack.len() {
                     let stack_idx = self.stack.len() - reg_index;
-                    self.current = self.stack[stack_idx].clone()
+                    self.current = self.stack[stack_idx].clone();
+                    trace!("Get register {} => {:?}", reg_index, self.current);
                 } else {
+                    error!("Invalid register access: {}", reg_index);
                     return Err(ContextUpdateError::RegOutOfIndex { reg_index });
                 }
             }
@@ -106,28 +127,56 @@ impl Context {
                 let reg_index = idx.0 as usize;
                 if reg_index < self.stack.len() {
                     let stack_idx = self.stack.len() - idx.0 as usize;
-                    self.stack[stack_idx] = self.current.clone()
+                    self.stack[stack_idx] = self.current.clone();
+                    trace!("Set register {} <= {:?}", reg_index, self.current);
                 } else {
+                    error!("Invalid register access: {}", reg_index);
                     return Err(ContextUpdateError::RegOutOfIndex { reg_index });
                 }
             }
-            Op::Print => print!("{}", &self.current.as_printable()),
+            Op::Print => 
+            {
+                print!("{}", &self.current.as_printable());
+                info!("Print instruction => {}", self.current.as_printable());
+            }
 
-            &Op::Jump(addr) => self.pc = addr,
+            &Op::Jump(addr) => {
+                self.pc = addr;
+                trace!("Jump to PC={}", self.pc.to_idx());
+            }
             &Op::Call(Addr::InstructionIdx(addr)) => {
                 self.call_stack.push(self.pc);
-                self.pc = Addr::InstructionIdx(addr + 1)
+                self.pc = Addr::InstructionIdx(addr + 1);
+                trace!("Call => PC={}, Call stack={:?}", self.pc.to_idx(), self.call_stack);
             }
             &Op::Branch(addr) => {
                 let op = self.current.to_bool().unwrap();
                 if op {
-                    self.pc = addr
+                    self.pc = addr;
+                    trace!("Branch taken to PC={}", self.pc.to_idx());
+                }
+                else {
+                    trace!("Branch not taken");
                 }
             }
-            Op::Ret => self.pc = self.call_stack.pop().unwrap(),
-            Op::Const(value) => self.current = value.clone(),
-            Op::Noop => (),
-            Op::Halt => return Err(ContextUpdateError::HaltExecution),
+            Op::Ret => {
+            self.pc = self.call_stack.pop().unwrap();
+            trace!("Return => PC={}", self.pc.to_idx());
+            }
+
+            Op::Const(value) => {
+                self.current = value.clone();
+                trace!("Load constant => {:?}", self.current);
+            }
+
+            Op::Noop => {
+                trace!("Noop");
+            }
+
+            Op::Halt => {
+                info!("Halt instruction encountered. Stopping execution.");
+                return Err(ContextUpdateError::HaltExecution);
+            }
         };
         Ok(())
     }
