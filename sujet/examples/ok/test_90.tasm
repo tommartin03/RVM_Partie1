@@ -1,0 +1,8 @@
+Const 3.14
+Push
+Const 5
+Add
+Print
+Const "\n"
+Print
+Halt

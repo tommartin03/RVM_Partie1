@@ -1,0 +1,12 @@
+Const 1
+Push
+
+Add
+Ret
+
+Const 3
+Sub
+Print
+Const "\n"
+Print
+Halt

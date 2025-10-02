@@ -1,0 +1,266 @@
+use crate::inner_prelude::*;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
+use std::path::Path;
+use std::{fmt::Display, str::FromStr};
+
+// Here, we modelize our instructions an enum type
+
+/// Represents the index of a register (stack of the program)
+#[derive(Debug, Clone, Copy)]
+pub struct RegIdx(pub u32);
+
+/// Represents a program address (index of an instruction)
+#[derive(Debug, Clone, Copy)]
+pub enum Addr {
+    InstructionIdx(u32),
+}
+
+impl Addr {
+    pub fn to_idx(&self) -> usize {
+        match self {
+            &Addr::InstructionIdx(idx) => idx as usize,
+        }
+    }
+
+    pub fn increment(&mut self) {
+        match self {
+            Addr::InstructionIdx(idx) => *idx += 1,
+        }
+    }
+}
+
+/// The instruction type
+#[repr(u8)]
+#[derive(Debug, Clone)]
+pub enum Instruction {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Lt,
+    Le,
+
+    And,
+    Or,
+    Not,
+
+    Push,
+    Pop,
+
+    Get(RegIdx),
+    Set(RegIdx),
+
+    Print,
+
+    Jump(Addr),
+    Call(Addr),
+    Branch(Addr),
+    Ret,
+
+    Const(Value),
+
+    Noop,
+    Halt,
+}
+
+// Those operation take classes of instructions and returns modified version, it is usefull to regroup program behavior on a per class basis.
+impl Instruction {
+    pub fn with_value(&self, value: Value) -> Option<Instruction> {
+        use Instruction as I;
+        match self {
+            I::Const(..) => Some(I::Const(value)),
+            _ => None,
+        }
+    }
+
+    pub fn with_reg(&self, reg_idx: RegIdx) -> Option<Instruction> {
+        use Instruction as I;
+        match self {
+            I::Get(..) => Some(I::Get(reg_idx)),
+            I::Set(..) => Some(I::Set(reg_idx)),
+            _ => None,
+        }
+    }
+
+    pub fn with_address(&self, addr: Addr) -> Option<Instruction> {
+        use Instruction as I;
+        match self {
+            I::Jump(..) => Some(I::Jump(addr)),
+            I::Call(..) => Some(I::Call(addr)),
+            I::Branch(..) => Some(I::Branch(addr)),
+            _ => None,
+        }
+    }
+}
+
+// Here, we parse an instruction
+impl FromStr for Instruction {
+    type Err = InstructionParsingError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        use Instruction as I;
+        // we remove a possible comment at the end of the line (split), and then we remove extra spaces / tabs / ... (trim)
+        let trimmed_s = s.split('#').next().unwrap().trim();
+        // We can match strings in Rust :)
+        Ok(match trimmed_s {
+            "" | "Noop" => I::Noop,
+            "Add" => I::Add,
+            "Sub" => I::Sub,
+            "Mul" => I::Mul,
+            "Div" => I::Div,
+            "Lt" => I::Lt,
+            "Le" => I::Le,
+            "And" => I::And,
+            "Or" => I::Or,
+            "Not" => I::Not,
+            "Push" => I::Push,
+            "Pop" => I::Pop,
+            "Print" => I::Print,
+            "Ret" => I::Ret,
+            "Halt" => I::Halt,
+            _ => {
+                let (operator, args) = trimmed_s
+                    .split_once(|c: char| c.is_whitespace())
+                    .ok_or_else(|| InstructionParsingError::InvalidArg {
+                        column: 1,
+                        arg: String::new(),
+                    })?;
+
+                let args = args.trim();
+
+                match operator {
+                    "Get" | "Set" => {
+                        let reg_index = args.parse().or_else(|_| {
+                            Err(InstructionParsingError::InvalidArg {
+                                column: 1,
+                                arg: args.to_owned(),
+                            })
+                        })?;
+                        match operator {
+                            "Get" => I::Get(RegIdx(0)),
+                            "Set" => I::Set(RegIdx(0)),
+                            _ => unreachable!(),
+                        }
+                        .with_reg(RegIdx(reg_index))
+                        .unwrap()
+                    }
+                    "Jump" | "Call" | "Branch" => {
+                        let addr: u32 = args.parse().or_else(|_| {
+                            Err(InstructionParsingError::InvalidArg {
+                                column: 1,
+                                arg: args.to_owned(),
+                            })
+                        })?;
+                        match operator {
+                            "Jump" => I::Jump(Addr::InstructionIdx(0)),
+                            "Call" => I::Call(Addr::InstructionIdx(0)),
+                            "Branch" => I::Branch(Addr::InstructionIdx(0)),
+                            _ => unreachable!(),
+                        }
+                        .with_address(Addr::InstructionIdx(addr - 1))
+                        .unwrap()
+                    }
+                    "Const" => {
+                        let value = args.parse().map_err(|err| match err {
+                            ValueParsingError::UnknownValue(invalid_const) => {
+                                InstructionParsingError::UnknownConst {
+                                    column: 1,
+                                    invalid_const,
+                                }
+                            }
+                        })?;
+                        I::Const(value)
+                    }
+                    op => {
+                        return Err(InstructionParsingError::UnknownInstruction {
+                            invalid_operator: op.to_owned(),
+                        })
+                    }
+                }
+            }
+        })
+    }
+}
+
+// Here, we reconvert instruction to their text assembly format
+impl Display for Instruction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use Instruction as I;
+        match self {
+            I::Noop => write!(f, "Noop"),
+            I::Add => write!(f, "Add"),
+            I::Sub => write!(f, "Sub"),
+            I::Mul => write!(f, "Mul"),
+            I::Div => write!(f, "Div"),
+            I::Lt => write!(f, "Lt"),
+            I::Le => write!(f, "Le"),
+            I::And => write!(f, "And"),
+            I::Or => write!(f, "Or"),
+            I::Not => write!(f, "Not"),
+            I::Push => write!(f, "Push"),
+            I::Pop => write!(f, "Pop"),
+            I::Print => write!(f, "Print"),
+            I::Ret => write!(f, "Ret"),
+            I::Halt => write!(f, "Halt"),
+            I::Get(idx) => write!(f, "Get {}", idx.0),
+            I::Set(idx) => write!(f, "Set {}", idx.0),
+            I::Jump(Addr::InstructionIdx(idx)) => write!(f, "Jump {}", idx + 1),
+            I::Call(Addr::InstructionIdx(idx)) => write!(f, "Call {}", idx + 1),
+            I::Branch(Addr::InstructionIdx(idx)) => write!(f, "Branch {}", idx + 1),
+            I::Const(Value::Str(value)) => write!(
+                f,
+                "Const \"{}\"",
+                value.replace("\n", "\\n").replace("\t", "\\t")
+            ),
+            I::Const(value) => write!(f, "Const {}", value),
+        }
+    }
+}
+
+impl Instruction {
+    /// Parses a test assembly file and returns all its instruction
+    pub fn parse_file<P: AsRef<Path>>(path: P) -> Result<Vec<Instruction>, FileParsingError> {
+        let file = File::open(path).unwrap();
+        BufReader::new(file)
+            .lines()
+            .enumerate()
+            .map(|(idx, line_res)| {
+                let line = line_res.unwrap();
+                line.trim().parse().map_err(move |err| (idx, line, err))
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|(line_idx, line, err)| match err {
+                InstructionParsingError::UnknownConst {
+                    column,
+                    invalid_const,
+                } => FileParsingError::UnknownConst {
+                    location: Location {
+                        line: line_idx + 1,
+                        column,
+                    },
+                    line,
+                    invalid_const,
+                },
+                InstructionParsingError::InvalidArg { column, arg } => {
+                    FileParsingError::InvalidArg {
+                        location: Location {
+                            line: line_idx + 1,
+                            column,
+                        },
+                        line,
+                        invalid_arg: arg,
+                    }
+                }
+                InstructionParsingError::UnknownInstruction { invalid_operator } => {
+                    FileParsingError::UnknownInstruction {
+                        location: Location {
+                            line: line_idx + 1,
+                            column: 1,
+                        },
+                        line,
+                        invalid_instruction: invalid_operator,
+                    }
+                }
+            })
+    }
+}
