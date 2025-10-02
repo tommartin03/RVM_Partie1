@@ -8,8 +8,18 @@ use clap::{Parser, Subcommand};
 #[command(name = "rvm")]
 #[command(about = "A rust virtual machine executing text assembly files", long_about = None)]
 pub struct Cli {
-    #[command(subcommand)]
-    pub command: Command,
+    #[arg(
+        short = 'v',
+        action = clap::ArgAction:: Count,
+        global = true,
+
+    )]
+    pub verbosity_counter: u8,
+    /// silence logs, override '-v'.
+    #[arg(short, long, global = true)]
+    pub silence: bool,
+        #[command(subcommand)]
+        pub command: Command,
 }
 
 // Here are the different subcommand (only 1 at the moment :) )
@@ -22,3 +32,20 @@ pub enum Command {
         path: OsString,
     },
 }
+
+impl Cli {
+    pub fn get_verbosity_level(&self) -> log::LevelFilter {
+        if self.silence {
+            log::LevelFilter::Off
+        } else {
+            match self.verbosity_counter {
+                0 => log::LevelFilter::Off,
+                1 => log::LevelFilter::Info,
+                2 => log::LevelFilter::Debug,
+                3 => log::LevelFilter::Trace,
+                _ => panic!("Invalid verbosity level"),
+            }
+        }
+    }
+}
+

@@ -136,25 +136,40 @@ fn handle_vm_result(path: &OsStr, vm: &mut OpVM) -> bool {
 
 /// Handles execution of a text assembly file
 fn main_exec(path: OsString) -> ExitCode {
-    // Parses the file and handle errors
+    log::info!("Début de l'exécution du fichier {:?}", path);
+
     let Some(instructions) = handle_parse_result(&path) else {
+        log::error!("Impossible de parser le fichier {:?}", path);
         return ExitCode::FAILURE;
     };
 
-    // Creates the vm
+    log::debug!("Instructions parsées : {:?}", instructions);
+
     let mut vm = OpVM::new(instructions);
 
-    // Run the vm and handles errors
     if handle_vm_result(&path, &mut vm) {
+        log::info!("Exécution terminée avec succès");
         ExitCode::SUCCESS
     } else {
+        log::error!("Échec de l'exécution du VM");
         ExitCode::FAILURE
     }
 }
 
 /// The main function, we match the command (only one possibility for now)
 fn main() -> ExitCode {
+    // Parse des arguments
     let args = Cli::parse();
+
+    // Initialisation du logger
+    env_logger::Builder::new()
+        .filter_level(args.get_verbosity_level())
+        .format_timestamp(None)
+        .format_target(false)
+        .format_level(false)
+        .format_indent(None)
+        .init();
+
     match args.command {
         Command::Exec { path } => main_exec(path),
     }
