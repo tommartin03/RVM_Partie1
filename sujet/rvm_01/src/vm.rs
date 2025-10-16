@@ -126,7 +126,7 @@ impl Context {
             &Op::Set(idx) => {
                 let reg_index = idx.0 as usize;
                 if reg_index < self.stack.len() {
-                    let stack_idx = self.stack.len() - 1 - idx.0 as usize; //correction ici pour la pile (test_50.tasm)
+                    let stack_idx = self.stack.len() - idx.0 as usize; //correction ici pour la pile (test_50.tasm) // L. Removed '-1' -> compiles until halt encountered
                     self.stack[stack_idx] = self.current.clone();
                     trace!("Set register {} <= {:?}", reg_index, self.current);
                 } else {
