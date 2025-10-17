@@ -146,7 +146,7 @@ impl Context {
             }
             &Op::Call(Addr::InstructionIdx(addr)) => {
                 self.call_stack.push(self.pc);
-                self.pc = Addr::InstructionIdx(addr + 1);
+                self.pc = Addr::InstructionIdx(addr);
                 trace!("Call => PC={}, Call stack={:?}", self.pc.to_idx(), self.call_stack);
             }
             &Op::Branch(addr) => {
@@ -161,6 +161,7 @@ impl Context {
             }
             Op::Ret => {
             self.pc = self.call_stack.pop().unwrap();
+            self.pc.increment();  // ← Ajouter ça !
             trace!("Return => PC={}", self.pc.to_idx());
             }
 
@@ -211,9 +212,17 @@ impl OpVM {
         loop {
             let insn_idx = self.context.pc.to_idx();
             let instruction = &self.code[insn_idx];
-            // Handles errors ...
+            
+            // Garder l'ancienne valeur du PC pour vérifier si elle a changé
+            let old_pc = insn_idx;
+            
             match self.context.execute_instruction(&instruction) {
-                Ok(..) => (),
+                Ok(..) => {
+                    // N'incrémenter que si le PC n'a pas été modifié par l'instruction
+                    if self.context.pc.to_idx() == old_pc {
+                        self.context.pc.increment();
+                    }
+                }
                 Err(ContextUpdateError::HaltExecution) => break,
                 Err(err) => {
                     let location = Location {
@@ -245,7 +254,6 @@ impl OpVM {
                                 ops_needed,
                             })
                         }
-
                         ContextUpdateError::RegOutOfIndex { reg_index } => {
                             return Err(ExecutionError::RegOutOfIndex {
                                 location,
@@ -258,7 +266,6 @@ impl OpVM {
                     }
                 }
             }
-            self.context.pc.increment();
         }
         Ok(())
     }
