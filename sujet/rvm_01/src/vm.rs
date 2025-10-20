@@ -161,7 +161,7 @@ impl Context {
             }
             Op::Ret => {
             self.pc = self.call_stack.pop().unwrap();
-            self.pc.increment();  // ← Ajouter ça !
+            self.pc.increment();
             trace!("Return => PC={}", self.pc.to_idx());
             }
 
