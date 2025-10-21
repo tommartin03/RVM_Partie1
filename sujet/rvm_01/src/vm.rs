@@ -95,12 +95,12 @@ impl Context {
             }
             Op::Not => {
                 let [operand] = self.take_ops()?;
-                self.current =
-                    Value::Bool(operand.to_bool().ok_or(ContextUpdateError::TypeError {
-                        op_num: 1,
-                        operand,
-                        expected_value: ConstType::Bool,
-                    })?);
+                let b = operand.to_bool().ok_or(ContextUpdateError::TypeError {
+                    op_num: 1,
+                    operand,
+                    expected_value: ConstType::Bool,
+                })?;
+                self.current = Value::Bool(!b);  // <--- le not logique ici !
                 trace!("Result of {:?} => {:?}", op, self.current);
             }
             Op::Push => {
