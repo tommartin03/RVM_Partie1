@@ -1,5 +1,5 @@
 use crate::inner_prelude::*;
-use log::{trace, debug, info, warn, error};
+use log::{trace, debug, info, error};
 
 #[derive(Debug, Clone)]
 pub struct Context {
@@ -10,7 +10,6 @@ pub struct Context {
 }
 
 impl Context {
-    /// Takes N operands in the stacks and return them
     fn take_ops<const N: usize>(&mut self) -> Result<[Value; N], ContextUpdateError> {
         let mut values = std::array::from_fn(|_| Value::Int(0));
 
@@ -33,7 +32,6 @@ impl Context {
         Ok(values)
     }
 
-    /// Executes an instruction and updates the context
     fn execute_instruction(&mut self, op: &Instruction) -> Result<(), ContextUpdateError> {
         use Instruction as Op;
 
@@ -49,40 +47,71 @@ impl Context {
             Op::Add | Op::Sub | Op::Mul | Op::Div | Op::Lt | Op::Le => {
                 let [op1, op2] = self.take_ops()?;
                 debug!("Operands: {:?}, {:?}", op1, op2);
-                let i1 = op1.to_int().ok_or(ContextUpdateError::TypeError {
-                    op_num: 1,
-                    operand: op1,
-                    expected_value: ConstType::Int,
-                })?;
-                let i2 = op2.to_int().ok_or(ContextUpdateError::TypeError {
-                    op_num: 2,
-                    operand: op2,
-                    expected_value: ConstType::Int,
-                })?;
+                // MODIF: comparaison par référence (&op1, &op2) pour éviter le move de `op1` et `op2`
+                if matches!((&op1, &op2), (Value::Int(_), Value::Int(_))) {
+                    let i1 = op1.to_int().unwrap();
+                    let i2 = op2.to_int().unwrap();
 
-                let res = match op {
-                    Op::Add => (i1 + i2).into(),
-                    Op::Sub => (i1 - i2).into(),
-                    Op::Mul => (i1 * i2).into(),
-                    Op::Div => (i1 / i2).into(),
-                    Op::Lt => (i1 < i2).into(),
-                    Op::Le => (i1 <= i2).into(),
-                    _ => unreachable!(),
-                };
-                self.current = res;
+                    let res = match op {
+                        Op::Add => (i1 + i2).into(),
+                        Op::Sub => (i1 - i2).into(),
+                        Op::Mul => (i1 * i2).into(),
+                        Op::Div => {
+                            if i2 == 0 {
+                                error!("Division par zéro !");
+                                return Err(ContextUpdateError::TypeError {
+                                    op_num: 2,
+                                    operand: Value::Int(0),
+                                    expected_value: ConstType::Int,
+                                });
+                            }
+                            (i1 / i2).into()
+                        }
+                        Op::Lt => (i1 < i2).into(),
+                        Op::Le => (i1 <= i2).into(),
+                        _ => unreachable!(),
+                    };
+                    self.current = res;
+                } else {
+                    // sinon -> float
+                    // MODIF: utilisation de .clone() sur op1 et op2 pour éviter le move lors des erreurs
+                    let f1 = op1.to_float().ok_or(ContextUpdateError::TypeError {
+                        op_num: 1,
+                        operand: op1.clone(),
+                        expected_value: ConstType::Float,
+                    })?;
+                    let f2 = op2.to_float().ok_or(ContextUpdateError::TypeError {
+                        op_num: 2,
+                        operand: op2.clone(),
+                        expected_value: ConstType::Float,
+                    })?;
+
+                    let res = match op {
+                        Op::Add => Value::Float(f1 + f2),
+                        Op::Sub => Value::Float(f1 - f2),
+                        Op::Mul => Value::Float(f1 * f2),
+                        Op::Div => Value::Float(f1 / f2),
+                        Op::Lt => (f1 < f2).into(),
+                        Op::Le => (f1 <= f2).into(),
+                        _ => unreachable!(),
+                    };
+                    self.current = res;
+                }
+
                 trace!("Result of {:?} => {:?}", op, self.current);
             }
+            // MODIF: ajout de .clone() pour éviter le move de op1 et op2 lors de la création d’erreurs
             Op::And | Op::Or => {
                 let [op1, op2] = self.take_ops()?;
                 debug!("Operands: {:?}, {:?}", op1, op2);
                 let b1 = op1.to_bool().ok_or_else(|| ContextUpdateError::TypeError {
                     op_num: 1,
-                    operand: op1,
+                    operand: op1.clone(),
                     expected_value: ConstType::Bool,
                 })?;
                 let b2 = op2.to_bool().ok_or_else(|| ContextUpdateError::TypeError {
                     op_num: 2,
-                    operand: op2,
+                    operand: op2.clone(),
                     expected_value: ConstType::Bool,
                 })?;
                 let res = match op {
@@ -93,6 +122,7 @@ impl Context {
                 self.current = res;
                 trace!("Result of {:?} => {:?}", op, self.current);
             }
+            // Modif: On récupère d'abord le booléen réel de l'opérande dans b, puis on inverse sa valeur
             Op::Not => {
                 let [operand] = self.take_ops()?;
                 let b = operand.to_bool().ok_or(ContextUpdateError::TypeError {
@@ -100,7 +130,7 @@ impl Context {
                     operand,
                     expected_value: ConstType::Bool,
                 })?;
-                self.current = Value::Bool(!b);  // <--- le not logique ici !
+                self.current = Value::Bool(!b);  // <--- le NOT logique ici !
                 trace!("Result of {:?} => {:?}", op, self.current);
             }
             Op::Push => {
@@ -115,7 +145,7 @@ impl Context {
             &Op::Get(idx) => {
                 let reg_index = idx.0 as usize;
                 if reg_index < self.stack.len() {
-                    let stack_idx = self.stack.len() - 1 - reg_index; //correction ici pour la pile(test_50.tasm)
+                    let stack_idx = self.stack.len() - 1 - reg_index; // <--- mise à jour à l'index correct
                     self.current = self.stack[stack_idx].clone();
                     trace!("Get register {} => {:?}", reg_index, self.current);
                 } else {
@@ -126,7 +156,7 @@ impl Context {
             &Op::Set(idx) => {
                 let reg_index = idx.0 as usize;
                 if reg_index < self.stack.len() {
-                    let stack_idx = self.stack.len() - 1 - idx.0 as usize; //correction ici pour la pile (test_50.tasm)
+                    let stack_idx = self.stack.len() - 1 - reg_index; // <--- mise à jour à l'index correct
                     self.stack[stack_idx] = self.current.clone();
                     trace!("Set register {} <= {:?}", reg_index, self.current);
                 } else {
@@ -134,8 +164,7 @@ impl Context {
                     return Err(ContextUpdateError::RegOutOfIndex { reg_index });
                 }
             }
-            Op::Print => 
-            {
+            Op::Print => {
                 print!("{}", &self.current.as_printable());
                 info!("Print instruction => {}", self.current.as_printable());
             }
@@ -154,26 +183,21 @@ impl Context {
                 if op {
                     self.pc = addr;
                     trace!("Branch taken to PC={}", self.pc.to_idx());
-                }
-                else {
+                } else {
                     trace!("Branch not taken");
                 }
             }
             Op::Ret => {
-            self.pc = self.call_stack.pop().unwrap();
-            self.pc.increment();
-            trace!("Return => PC={}", self.pc.to_idx());
+                self.pc = self.call_stack.pop().unwrap();
+                self.pc.increment();
+                trace!("Return => PC={}", self.pc.to_idx());
             }
 
             Op::Const(value) => {
                 self.current = value.clone();
                 trace!("Load constant => {:?}", self.current);
             }
-
-            Op::Noop => {
-                trace!("Noop");
-            }
-
+            Op::Noop => trace!("Noop"),
             Op::Halt => {
                 info!("Halt instruction encountered. Stopping execution.");
                 return Err(ContextUpdateError::HaltExecution);
@@ -206,19 +230,15 @@ impl OpVM {
             context: Context::new(Addr::InstructionIdx(0)),
         }
     }
-    
-    /// Main VM function, loop through instructions, updating the context, while there is no Halt instruction
+
     pub fn run(&mut self) -> Result<(), ExecutionError> {
         loop {
             let insn_idx = self.context.pc.to_idx();
             let instruction = &self.code[insn_idx];
-            
-            // Garder l'ancienne valeur du PC pour vérifier si elle a changé
             let old_pc = insn_idx;
-            
-            match self.context.execute_instruction(&instruction) {
+            // MODIF: appel simplifié de execute_instruction sans référence redondante
+            match self.context.execute_instruction(instruction) {
                 Ok(..) => {
-                    // N'incrémenter que si le PC n'a pas été modifié par l'instruction
                     if self.context.pc.to_idx() == old_pc {
                         self.context.pc.increment();
                     }
@@ -229,41 +249,36 @@ impl OpVM {
                         line: insn_idx + 1,
                         column: 1,
                     };
-                    match err {
+                    // MODIF: simplification du match sur err avec un return Err(match err { ... })
+                    return Err(match err {
                         ContextUpdateError::TypeError {
                             op_num,
                             operand,
                             expected_value,
-                        } => {
-                            return Err(ExecutionError::TypeError {
-                                location,
-                                instruction: instruction.to_owned(),
-                                op_num,
-                                operand,
-                                expected_type: expected_value,
-                            })
-                        }
+                        } => ExecutionError::TypeError {
+                            location,
+                            instruction: instruction.to_owned(),
+                            op_num,
+                            operand,
+                            expected_type: expected_value,
+                        },
                         ContextUpdateError::MissingOperand {
                             ops_found,
                             ops_needed,
-                        } => {
-                            return Err(ExecutionError::MissingOperand {
-                                location,
-                                instruction: instruction.to_owned(),
-                                ops_found,
-                                ops_needed,
-                            })
-                        }
-                        ContextUpdateError::RegOutOfIndex { reg_index } => {
-                            return Err(ExecutionError::RegOutOfIndex {
-                                location,
-                                instruction: instruction.to_owned(),
-                                stack_len: self.context.stack.len(),
-                                reg_index,
-                            })
-                        }
+                        } => ExecutionError::MissingOperand {
+                            location,
+                            instruction: instruction.to_owned(),
+                            ops_found,
+                            ops_needed,
+                        },
+                        ContextUpdateError::RegOutOfIndex { reg_index } => ExecutionError::RegOutOfIndex {
+                            location,
+                            instruction: instruction.to_owned(),
+                            stack_len: self.context.stack.len(),
+                            reg_index,
+                        },
                         ContextUpdateError::HaltExecution => unreachable!(),
-                    }
+                    });
                 }
             }
         }

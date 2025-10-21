@@ -4,6 +4,7 @@ use std::{fmt::Display, str::FromStr};
 #[derive(Debug, Clone)]
 pub enum Value {
     Int(i64),
+    Float(f64),
     Bool(bool),
     Str(String),
 }
@@ -18,6 +19,14 @@ impl Value {
     pub fn to_int(&self) -> Option<i64> {
         match self {
             &Value::Int(value) => Some(value),
+            _ => None,
+        }
+    }
+
+    pub fn to_float(&self) -> Option<f64> {
+        match self {
+            &Value::Float(value) => Some(value),
+            &Value::Int(value) => Some(value as f64),
             _ => None,
         }
     }
@@ -49,7 +58,8 @@ impl Value {
 #[derive(Debug, Clone, Copy)]
 pub enum ConstType {
     Int = 0, // 0
-    Bool,    // 1
+    Float,   // 1
+    Bool,    // 2
 
     String = 10, // 10
 
@@ -62,6 +72,7 @@ impl Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Value::Int(value) => Display::fmt(value, f),
+            Value::Float(value) => Display::fmt(value, f),
             Value::Bool(value) => Display::fmt(value, f),
             Value::Str(value) => Display::fmt(&value.replace("\n", "\\n").replace("\t", "\\t"), f),
         }
@@ -74,6 +85,7 @@ impl<'a> Display for PrintDisplay<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.0 {
             Value::Int(value) => Display::fmt(value, f),
+            Value::Float(value) => Display::fmt(value, f),
             Value::Bool(value) => Display::fmt(value, f),
             Value::Str(value) => Display::fmt(value, f),
         }
@@ -87,10 +99,13 @@ impl FromStr for Value {
             Ok(Value::Bool(value))
         } else if let Ok(value) = i64::from_str(s) {
             Ok(Value::Int(value))
+        } else if let Ok(value) = f64::from_str(s) {
+            Ok(Value::Float(value))
         } else if s.starts_with('"') && s.ends_with('"') {
             let s = s[1..s.len() - 1].to_owned();
             Ok(Value::Str(s.replace("\\n", "\n").replace("\\t", "\t")))
-        } else {
+        }
+        else {
             Err(ValueParsingError::UnknownValue(s.to_owned()))
         }
     }
@@ -99,6 +114,12 @@ impl FromStr for Value {
 impl From<i64> for Value {
     fn from(value: i64) -> Self {
         Value::Int(value)
+    }
+}
+
+impl From<f64> for Value {
+    fn from(value: f64) -> Self {
+        Value::Float(value)
     }
 }
 
