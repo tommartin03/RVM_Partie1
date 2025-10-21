@@ -10,6 +10,7 @@ pub struct Context {
 }
 
 impl Context {
+    /// Takes N operands in the stacks and return them
     fn take_ops<const N: usize>(&mut self) -> Result<[Value; N], ContextUpdateError> {
         let mut values = std::array::from_fn(|_| Value::Int(0));
 
@@ -31,7 +32,7 @@ impl Context {
 
         Ok(values)
     }
-
+    /// Executes an instruction and updates the context
     fn execute_instruction(&mut self, op: &Instruction) -> Result<(), ContextUpdateError> {
         use Instruction as Op;
 
@@ -47,6 +48,7 @@ impl Context {
             Op::Add | Op::Sub | Op::Mul | Op::Div | Op::Lt | Op::Le => {
                 let [op1, op2] = self.take_ops()?;
                 debug!("Operands: {:?}, {:?}", op1, op2);
+                // MODIF: comparaison par référence (&op1, &op2) pour éviter le move de op1 et op2
                 if matches!((&op1, &op2), (Value::Int(_), Value::Int(_))) {
                     let i1 = op1.to_int().unwrap();
                     let i2 = op2.to_int().unwrap();
@@ -72,6 +74,8 @@ impl Context {
                     };
                     self.current = res;
                 } else {
+                    // sinon -> float
+                    // MODIF: utilisation de .clone() sur op1 et op2 pour éviter le move lors des erreurs
                     let f1 = op1.to_float().ok_or(ContextUpdateError::TypeError {
                         op_num: 1,
                         operand: op1.clone(),
@@ -97,7 +101,7 @@ impl Context {
 
                 trace!("Result of {:?} => {:?}", op, self.current);
             }
-
+             // MODIF: ajout de .clone() pour éviter le move de op1 et op2 lors de la création d’erreurs
             Op::And | Op::Or => {
                 let [op1, op2] = self.take_ops()?;
                 debug!("Operands: {:?}, {:?}", op1, op2);
@@ -119,7 +123,7 @@ impl Context {
                 self.current = res;
                 trace!("Result of {:?} => {:?}", op, self.current);
             }
-
+             // Modif: On récupère d'abord le booléen réel de l'opérande dans b, puis on inverse sa valeur
             Op::Not => {
                 let [operand] = self.take_ops()?;
                 let b = operand.to_bool().ok_or(ContextUpdateError::TypeError {
@@ -264,15 +268,17 @@ impl OpVM {
             context: Context::new(Addr::InstructionIdx(0)),
         }
     }
-
+    /// Main VM function, loop through instructions, updating the context, while there is no Halt instruction
     pub fn run(&mut self) -> Result<(), ExecutionError> {
         loop {
             let insn_idx = self.context.pc.to_idx();
             let instruction = &self.code[insn_idx];
+            // Modif: garder l'ancienne valeur du PC pour vérifier si elle a changé
             let old_pc = insn_idx;
-
+            // MODIF: appel simplifié de execute_instruction sans référence redondante
             match self.context.execute_instruction(instruction) {
                 Ok(..) => {
+                    // Modif: n'incrémente le PC que si l'instruction courante ne l'a pas déjà modifié
                     if self.context.pc.to_idx() == old_pc {
                         self.context.pc.increment();
                     }
@@ -283,6 +289,7 @@ impl OpVM {
                         line: insn_idx + 1,
                         column: 1,
                     };
+                    // MODIF: simplification du match sur err avec un return Err(match err { ... })
                     return Err(match err {
                         ContextUpdateError::TypeError {
                             op_num,
