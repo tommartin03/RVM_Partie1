@@ -13,11 +13,9 @@ impl Context {
     /// Takes N operands in the stacks and return them
     fn take_ops<const N: usize>(&mut self) -> Result<[Value; N], ContextUpdateError> {
         let mut values = std::array::from_fn(|_| Value::Int(0));
-
         if 0 < N {
             values[0] = self.current.take();
         }
-
         for i in 1..N {
             match self.stack.pop() {
                 Some(value) => values[i] = value,
@@ -29,13 +27,11 @@ impl Context {
                 }
             }
         }
-
         Ok(values)
     }
     /// Executes an instruction and updates the context
     fn execute_instruction(&mut self, op: &Instruction) -> Result<(), ContextUpdateError> {
         use Instruction as Op;
-
         trace!(
             "PC={} | Current={:?} | Stack={:?} | Executing {:?}",
             self.pc.to_idx(),
@@ -43,7 +39,6 @@ impl Context {
             self.stack,
             op
         );
-
         match op {
             Op::Add | Op::Sub | Op::Mul | Op::Div | Op::Lt | Op::Le => {
                 let [op1, op2] = self.take_ops()?;
@@ -101,7 +96,7 @@ impl Context {
 
                 trace!("Result of {:?} => {:?}", op, self.current);
             }
-             // MODIF: ajout de .clone() pour éviter le move de op1 et op2 lors de la création d’erreurs
+            // MODIF: ajout de .clone() pour éviter le move de op1 et op2 lors de la création d’erreurs
             Op::And | Op::Or => {
                 let [op1, op2] = self.take_ops()?;
                 debug!("Operands: {:?}, {:?}", op1, op2);
@@ -134,18 +129,15 @@ impl Context {
                 self.current = Value::Bool(!b);  // <--- le NOT logique ici !
                 trace!("Result of {:?} => {:?}", op, self.current);
             }
-
             Op::Push => {
                 self.stack.push(self.current.clone());
                 trace!("Pushed {:?} to stack", self.current);
             }
-
             Op::Pop => {
                 let [_, op] = self.take_ops()?;
                 self.current = op;
                 trace!("Popped {:?} from stack", self.current);
             }
-
             // MODIF: ajout de PushReg et PopSet
             // PushReg : duplique la valeur d’un registre sur la pile
             // PopSet  : retire le sommet de pile et l’écrit dans un registre
@@ -161,7 +153,6 @@ impl Context {
                     return Err(ContextUpdateError::RegOutOfIndex { reg_index });
                 }
             }
-
             &Op::PopSet(idx) => {
                 let reg_index = idx.0 as usize;
                 if reg_index >= self.stack.len() - 1 {
@@ -177,7 +168,6 @@ impl Context {
                 self.current = value.clone();
                 trace!("PopSet {} <= valeur {:?} (pop puis set)", reg_index, value);
             }
-
             &Op::Get(idx) => {
                 let reg_index = idx.0 as usize;
                 if reg_index < self.stack.len() {
@@ -189,7 +179,6 @@ impl Context {
                     return Err(ContextUpdateError::RegOutOfIndex { reg_index });
                 }
             }
-
             &Op::Set(idx) => {
                 let reg_index = idx.0 as usize;
                 if reg_index < self.stack.len() {
@@ -201,7 +190,6 @@ impl Context {
                     return Err(ContextUpdateError::RegOutOfIndex { reg_index });
                 }
             }
-
             Op::Print => {
                 print!("{}", &self.current.as_printable());
                 info!("Print instruction => {}", self.current.as_printable());
@@ -216,8 +204,15 @@ impl Context {
                 self.pc = Addr::InstructionIdx(addr);
                 trace!("Call => PC={}, Call stack={:?}", self.pc.to_idx(), self.call_stack);
             }
+            // MODIF: sécurisation de Branch et Ret (remplacement des .unwrap() par des erreurs gérées)
             &Op::Branch(addr) => {
-                let op = self.current.to_bool().unwrap();
+                // MODIF: on remplace .unwrap() par une vérification explicite de type Bool
+                let op = self.current.to_bool().ok_or(ContextUpdateError::TypeError {
+                    op_num: 1,
+                    operand: self.current.clone(),
+                    expected_value: ConstType::Bool,
+                })?;
+
                 if op {
                     self.pc = addr;
                     trace!("Branch taken to PC={}", self.pc.to_idx());
@@ -226,11 +221,16 @@ impl Context {
                 }
             }
             Op::Ret => {
-                self.pc = self.call_stack.pop().unwrap();
+                // MODIF: on remplace .unwrap() sur call_stack.pop() par une gestion d’erreur propre
+                let ret_addr = self.call_stack.pop().ok_or(ContextUpdateError::MissingOperand {
+                    ops_found: 0,
+                    ops_needed: 1,
+                })?;
+
+                self.pc = ret_addr;
                 self.pc.increment();
                 trace!("Return => PC={}", self.pc.to_idx());
             }
-
             Op::Const(value) => {
                 self.current = value.clone();
                 trace!("Load constant => {:?}", self.current);
