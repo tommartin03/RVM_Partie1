@@ -28,8 +28,8 @@ impl Addr {
             Addr::InstructionIdx(idx) => *idx += 1,
         }
     }
-}
 
+}
 /// The instruction type
 #[repr(u8)]
 #[derive(Debug, Clone)]
@@ -50,6 +50,10 @@ pub enum Instruction {
 
     Get(RegIdx),
     Set(RegIdx),
+
+    // Modif: Nouvelles instructions combinées
+    PushReg(RegIdx), // Combine Get + Push
+    PopSet(RegIdx),  // Combine Pop + Set
 
     Print,
 
@@ -79,6 +83,8 @@ impl Instruction {
         match self {
             I::Get(..) => Some(I::Get(reg_idx)),
             I::Set(..) => Some(I::Set(reg_idx)),
+            I::PushReg(..) => Some(I::PushReg(reg_idx)), // <--- ajouté ici
+            I::PopSet(..) => Some(I::PopSet(reg_idx)),   // <--- ajouté ici
             _ => None,
         }
     }
@@ -125,11 +131,10 @@ impl FromStr for Instruction {
                         column: 1,
                         arg: String::new(),
                     })?;
-
                 let args = args.trim();
 
                 match operator {
-                    "Get" | "Set" => {
+                    "Get" | "Set" | "PushReg" | "PopSet" => {
                         let reg_index = args.parse().or_else(|_| {
                             Err(InstructionParsingError::InvalidArg {
                                 column: 1,
@@ -137,13 +142,14 @@ impl FromStr for Instruction {
                             })
                         })?;
                         match operator {
-                            "Get" => I::Get(RegIdx(0)),
-                            "Set" => I::Set(RegIdx(0)),
+                            "Get" => I::Get(RegIdx(reg_index)),
+                            "Set" => I::Set(RegIdx(reg_index)),
+                            "PushReg" => I::PushReg(RegIdx(reg_index)), // <--- nouveau
+                            "PopSet" => I::PopSet(RegIdx(reg_index)),   // <--- nouveau
                             _ => unreachable!(),
                         }
-                        .with_reg(RegIdx(reg_index))
-                        .unwrap()
                     }
+
                     "Jump" | "Call" | "Branch" => {
                         let addr: u32 = args.parse().or_else(|_| {
                             Err(InstructionParsingError::InvalidArg {
@@ -152,14 +158,13 @@ impl FromStr for Instruction {
                             })
                         })?;
                         match operator {
-                            "Jump" => I::Jump(Addr::InstructionIdx(0)),
-                            "Call" => I::Call(Addr::InstructionIdx(0)),
-                            "Branch" => I::Branch(Addr::InstructionIdx(0)),
+                            "Jump" => I::Jump(Addr::InstructionIdx(addr - 1)),
+                            "Call" => I::Call(Addr::InstructionIdx(addr - 1)),
+                            "Branch" => I::Branch(Addr::InstructionIdx(addr - 1)),
                             _ => unreachable!(),
                         }
-                        .with_address(Addr::InstructionIdx(addr - 1))
-                        .unwrap()
                     }
+
                     "Const" => {
                         let value = args.parse().map_err(|err| match err {
                             ValueParsingError::UnknownValue(invalid_const) => {
@@ -171,6 +176,7 @@ impl FromStr for Instruction {
                         })?;
                         I::Const(value)
                     }
+
                     op => {
                         return Err(InstructionParsingError::UnknownInstruction {
                             invalid_operator: op.to_owned(),
@@ -204,6 +210,8 @@ impl Display for Instruction {
             I::Halt => write!(f, "Halt"),
             I::Get(idx) => write!(f, "Get {}", idx.0),
             I::Set(idx) => write!(f, "Set {}", idx.0),
+            I::PushReg(idx) => write!(f, "PushReg {}", idx.0), // <--- affichage ajouté
+            I::PopSet(idx) => write!(f, "PopSet {}", idx.0),   // <--- affichage ajouté
             I::Jump(Addr::InstructionIdx(idx)) => write!(f, "Jump {}", idx + 1),
             I::Call(Addr::InstructionIdx(idx)) => write!(f, "Call {}", idx + 1),
             I::Branch(Addr::InstructionIdx(idx)) => write!(f, "Branch {}", idx + 1),
@@ -241,16 +249,14 @@ impl Instruction {
                     line,
                     invalid_const,
                 },
-                InstructionParsingError::InvalidArg { column, arg } => {
-                    FileParsingError::InvalidArg {
-                        location: Location {
-                            line: line_idx + 1,
-                            column,
-                        },
-                        line,
-                        invalid_arg: arg,
-                    }
-                }
+                InstructionParsingError::InvalidArg { column, arg } => FileParsingError::InvalidArg {
+                    location: Location {
+                        line: line_idx + 1,
+                        column,
+                    },
+                    line,
+                    invalid_arg: arg,
+                },
                 InstructionParsingError::UnknownInstruction { invalid_operator } => {
                     FileParsingError::UnknownInstruction {
                         location: Location {

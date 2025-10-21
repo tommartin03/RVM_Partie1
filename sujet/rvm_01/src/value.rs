@@ -4,7 +4,7 @@ use std::{fmt::Display, str::FromStr};
 #[derive(Debug, Clone)]
 pub enum Value {
     Int(i64),
-    Float(f64),
+    Float(f64), // <-- ajout de la variante Float
     Bool(bool),
     Str(String),
 }

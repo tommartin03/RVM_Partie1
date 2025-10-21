@@ -47,7 +47,6 @@ impl Context {
             Op::Add | Op::Sub | Op::Mul | Op::Div | Op::Lt | Op::Le => {
                 let [op1, op2] = self.take_ops()?;
                 debug!("Operands: {:?}, {:?}", op1, op2);
-                // MODIF: comparaison par référence (&op1, &op2) pour éviter le move de `op1` et `op2`
                 if matches!((&op1, &op2), (Value::Int(_), Value::Int(_))) {
                     let i1 = op1.to_int().unwrap();
                     let i2 = op2.to_int().unwrap();
@@ -73,8 +72,6 @@ impl Context {
                     };
                     self.current = res;
                 } else {
-                    // sinon -> float
-                    // MODIF: utilisation de .clone() sur op1 et op2 pour éviter le move lors des erreurs
                     let f1 = op1.to_float().ok_or(ContextUpdateError::TypeError {
                         op_num: 1,
                         operand: op1.clone(),
@@ -100,7 +97,7 @@ impl Context {
 
                 trace!("Result of {:?} => {:?}", op, self.current);
             }
-            // MODIF: ajout de .clone() pour éviter le move de op1 et op2 lors de la création d’erreurs
+
             Op::And | Op::Or => {
                 let [op1, op2] = self.take_ops()?;
                 debug!("Operands: {:?}, {:?}", op1, op2);
@@ -122,7 +119,7 @@ impl Context {
                 self.current = res;
                 trace!("Result of {:?} => {:?}", op, self.current);
             }
-            // Modif: On récupère d'abord le booléen réel de l'opérande dans b, puis on inverse sa valeur
+
             Op::Not => {
                 let [operand] = self.take_ops()?;
                 let b = operand.to_bool().ok_or(ContextUpdateError::TypeError {
@@ -133,15 +130,50 @@ impl Context {
                 self.current = Value::Bool(!b);  // <--- le NOT logique ici !
                 trace!("Result of {:?} => {:?}", op, self.current);
             }
+
             Op::Push => {
                 self.stack.push(self.current.clone());
                 trace!("Pushed {:?} to stack", self.current);
             }
+
             Op::Pop => {
                 let [_, op] = self.take_ops()?;
                 self.current = op;
                 trace!("Popped {:?} from stack", self.current);
             }
+
+            // MODIF: ajout de PushReg et PopSet
+            // PushReg : duplique la valeur d’un registre sur la pile
+            // PopSet  : retire le sommet de pile et l’écrit dans un registre
+            &Op::PushReg(idx) => {
+                let reg_index = idx.0 as usize;
+                if reg_index < self.stack.len() {
+                    let stack_idx = self.stack.len() - 1 - reg_index;
+                    let value = self.stack[stack_idx].clone();
+                    self.stack.push(value.clone());
+                    trace!("PushReg {} => valeur {:?} dupliquée sur la pile", reg_index, value);
+                } else {
+                    error!("Invalid PushReg index: {}", reg_index);
+                    return Err(ContextUpdateError::RegOutOfIndex { reg_index });
+                }
+            }
+
+            &Op::PopSet(idx) => {
+                let reg_index = idx.0 as usize;
+                if reg_index >= self.stack.len() - 1 {
+                    error!("Invalid PopSet index: {}", reg_index);
+                    return Err(ContextUpdateError::RegOutOfIndex { reg_index });
+                }
+                let value = self.stack.pop().ok_or(ContextUpdateError::MissingOperand {
+                    ops_found: 0,
+                    ops_needed: 1,
+                })?;
+                let stack_idx = self.stack.len() - 1 - reg_index;
+                self.stack[stack_idx] = value.clone();
+                self.current = value.clone();
+                trace!("PopSet {} <= valeur {:?} (pop puis set)", reg_index, value);
+            }
+
             &Op::Get(idx) => {
                 let reg_index = idx.0 as usize;
                 if reg_index < self.stack.len() {
@@ -153,6 +185,7 @@ impl Context {
                     return Err(ContextUpdateError::RegOutOfIndex { reg_index });
                 }
             }
+
             &Op::Set(idx) => {
                 let reg_index = idx.0 as usize;
                 if reg_index < self.stack.len() {
@@ -164,6 +197,7 @@ impl Context {
                     return Err(ContextUpdateError::RegOutOfIndex { reg_index });
                 }
             }
+
             Op::Print => {
                 print!("{}", &self.current.as_printable());
                 info!("Print instruction => {}", self.current.as_printable());
@@ -236,7 +270,7 @@ impl OpVM {
             let insn_idx = self.context.pc.to_idx();
             let instruction = &self.code[insn_idx];
             let old_pc = insn_idx;
-            // MODIF: appel simplifié de execute_instruction sans référence redondante
+
             match self.context.execute_instruction(instruction) {
                 Ok(..) => {
                     if self.context.pc.to_idx() == old_pc {
@@ -249,7 +283,6 @@ impl OpVM {
                         line: insn_idx + 1,
                         column: 1,
                     };
-                    // MODIF: simplification du match sur err avec un return Err(match err { ... })
                     return Err(match err {
                         ContextUpdateError::TypeError {
                             op_num,
