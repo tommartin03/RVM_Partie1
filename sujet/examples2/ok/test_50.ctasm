@@ -1,0 +1,24 @@
+Const 21
+Push
+Const 1
+Push
+Const 1
+Push
+Get 0
+Push
+Get 2
+Mul
+Set 1
+Const 1
+Add
+Push
+Get 2
+Push
+Get 1
+Le
+Branch 7
+Get 1
+Print
+Const "\n"
+Print
+Halt

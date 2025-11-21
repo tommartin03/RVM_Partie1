@@ -1,0 +1,40 @@
+Const 10
+Push
+Const Nil
+
+Call 12
+
+Print
+Const "\n"
+Print
+Halt
+
+
+Push
+Const 0
+Push
+Get 2
+Le
+
+Branch 37
+
+Get 1
+Pair
+Push
+
+Const 1
+Push
+Get 2
+Sub
+
+Set 1
+Pop
+
+Call 12
+
+Ret
+
+Const 0
+Pair
+
+Ret

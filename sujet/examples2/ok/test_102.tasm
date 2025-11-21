@@ -1,0 +1,90 @@
+Jump 83 # Main
+
+# Reverse (pair)
+# -> pair
+Push
+Const Nil
+Jump 10 # Reverse Aux
+
+
+# Reverse Aux (pair, pair)
+# -> pair
+Push
+Get 1
+Is Pair
+
+Branch 23 # Reverse Aux End
+
+Pop
+Set 0
+Pop
+Ret
+
+# Reverse Aux End
+
+Get 1
+First
+Pair
+Push
+Get 1
+Second
+Set 1
+Pop
+Call 10 # Reverse Aux
+
+Ret
+
+
+
+
+# Range (number)
+# -> pair
+Push
+Const Nil
+Call 49 # Range Aux
+Set 0
+Pop
+Ret
+
+# Range Aux (pair, number)
+# -> pair
+Push
+Const 0
+Push
+Get 2
+Le
+
+Branch 75 # Range Aux Alt
+
+Get 1
+Pair
+Push
+
+Const 1
+Push
+Get 2
+Sub
+
+Set 1
+Pop
+
+Call 49 # Range Aux
+
+Ret
+
+# Range Aux Alt
+
+Const 0
+Pair
+
+Ret
+
+
+# Main
+Const 20
+Call 40 # Range
+Call 3 # Reverse
+Print
+Const "\n"
+Print
+Halt

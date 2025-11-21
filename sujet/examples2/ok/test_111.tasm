@@ -1,0 +1,11 @@
+Const Nil
+Push
+Pair
+Push
+SetSecond
+Push
+SetFirst
+Print
+Const "\n"
+Print
+Halt

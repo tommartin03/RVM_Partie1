@@ -3,7 +3,7 @@ BGreen='\033[1;32m'       # Green
 Off='\033[0m'       # Text Reset
 
 last_path=$(pwd)
-examples_path="../examples" # insert global path to examples
+examples_path="../examples2" # insert global path to examples
 
 if [ -n "$1" ]
   then
@@ -14,7 +14,7 @@ fi
 
 RVM='rvm'
 
-# export GLOBIGNORE="examples/ok/_*.tasm"
+# export GLOBIGNORE="examples2/ok/_*.tasm"
 tasm_files=$(ls ${examples_path}/ok/*.tasm -v)
 # unset GLOBIGNORE
 

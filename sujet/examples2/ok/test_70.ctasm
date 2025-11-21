@@ -1,0 +1,38 @@
+Const 15
+Push
+Push
+Const 1
+Lt
+Branch 12
+Const 1
+Print
+Const "\n"
+Print
+Halt
+Const 1
+Push
+Const 1
+Push
+Const 1
+Push
+Get 1
+Push
+Get 1
+Set 2
+Add
+Set 0
+Get 2
+Push
+Const 1
+Add
+Set 2
+Get 3
+Push
+Get 3
+Lt
+Branch 18
+Get 0
+Print
+Const "\n"
+Print
+Halt

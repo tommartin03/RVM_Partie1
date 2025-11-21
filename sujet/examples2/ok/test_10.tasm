@@ -1,0 +1,5 @@
+Const 1
+Print
+Const "\n"
+Print
+Halt
