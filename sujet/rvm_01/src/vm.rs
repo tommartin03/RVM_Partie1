@@ -1,5 +1,6 @@
 use crate::inner_prelude::*;
 use log::{trace, debug, info, error};
+use std::rc::Rc; // Modif: Import nécessaire pour créer des paires avec Rc::new
 
 #[derive(Debug, Clone)]
 pub struct Context {
@@ -189,6 +190,74 @@ impl Context {
                     error!("Invalid register access: {}", reg_index);
                     return Err(ContextUpdateError::RegOutOfIndex { reg_index });
                 }
+            }
+            // Modif: Implémentation de l'instruction Pair
+            // Consomme current et le sommet de pile pour créer une paire (first, second)
+            Op::Pair => {
+                let [first, second] = self.take_ops()?;
+                self.current = Value::Pair(Some(Rc::new((first, second))));
+                trace!("Pair created => {:?}", self.current);
+            }
+            // Modif: Implémentation de l'instruction First
+            // Extrait la première composante d'une paire
+            Op::First => {
+                let [pair_val] = self.take_ops()?;
+                match pair_val.as_pair() {
+                    Some(Some(rc)) => {
+                        self.current = rc.0.clone();
+                        trace!("First => {:?}", self.current);
+                    }
+                    Some(None) => {
+                        error!("First called on Nil");
+                        return Err(ContextUpdateError::TypeError {
+                            op_num: 1,
+                            operand: pair_val,
+                            expected_value: ConstType::Pair,
+                        });
+                    }
+                    None => {
+                        error!("First called on non-pair value");
+                        return Err(ContextUpdateError::TypeError {
+                            op_num: 1,
+                            operand: pair_val,
+                            expected_value: ConstType::Pair,
+                        });
+                    }
+                }
+            }
+            // Modif: Implémentation de l'instruction Second
+            // Extrait la seconde composante d'une paire
+            Op::Second => {
+                let [pair_val] = self.take_ops()?;
+                match pair_val.as_pair() {
+                    Some(Some(rc)) => {
+                        self.current = rc.1.clone();
+                        trace!("Second => {:?}", self.current);
+                    }
+                    Some(None) => {
+                        error!("Second called on Nil");
+                        return Err(ContextUpdateError::TypeError {
+                            op_num: 1,
+                            operand: pair_val,
+                            expected_value: ConstType::Pair,
+                        });
+                    }
+                    None => {
+                        error!("Second called on non-pair value");
+                        return Err(ContextUpdateError::TypeError {
+                            op_num: 1,
+                            operand: pair_val,
+                            expected_value: ConstType::Pair,
+                        });
+                    }
+                }
+            }
+            // Modif: Implémentation de l'instruction IsConsType
+            // Vérifie si current est du type spécifié et place true/false dans current
+            &Op::IsConsType(const_type) => {
+                let result = self.current.is_type(const_type);
+                self.current = Value::Bool(result);
+                trace!("IsConsType({:?}) => {:?}", const_type, result);
             }
             Op::Print => {
                 print!("{}", &self.current.as_printable());

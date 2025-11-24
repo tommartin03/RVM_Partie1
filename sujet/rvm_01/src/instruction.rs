@@ -28,8 +28,8 @@ impl Addr {
             Addr::InstructionIdx(idx) => *idx += 1,
         }
     }
-
 }
+
 /// The instruction type
 #[repr(u8)]
 #[derive(Debug, Clone)]
@@ -54,6 +54,12 @@ pub enum Instruction {
     // Modif: Nouvelles instructions combinées
     PushReg(RegIdx), // Combine Get + Push
     PopSet(RegIdx),  // Combine Pop + Set
+
+    // Modif: Nouvelles instructions pour les paires
+    Pair,                    // Crée une paire à partir de current et du sommet de pile
+    First,                   // Extrait le premier élément d'une paire
+    Second,                  // Extrait le second élément d'une paire
+    IsConsType(ConstType),   // Vérifie si current est du type spécifié
 
     Print,
 
@@ -121,6 +127,9 @@ impl FromStr for Instruction {
             "Not" => I::Not,
             "Push" => I::Push,
             "Pop" => I::Pop,
+            "Pair" => I::Pair,    // Modif: Parsing de l'instruction Pair
+            "First" => I::First,  // Modif: Parsing de l'instruction First
+            "Second" => I::Second, // Modif: Parsing de l'instruction Second
             "Print" => I::Print,
             "Ret" => I::Ret,
             "Halt" => I::Halt,
@@ -165,6 +174,24 @@ impl FromStr for Instruction {
                         }
                     }
 
+                    // Modif: Parsing de IsConsType avec son argument de type
+                    "IsConsType" => {
+                        let const_type = match args {
+                            "Int" => ConstType::Int,
+                            "Float" => ConstType::Float,
+                            "Bool" => ConstType::Bool,
+                            "String" => ConstType::String,
+                            "Pair" => ConstType::Pair,
+                            _ => {
+                                return Err(InstructionParsingError::InvalidArg {
+                                    column: 1,
+                                    arg: args.to_owned(),
+                                })
+                            }
+                        };
+                        I::IsConsType(const_type)
+                    }
+
                     "Const" => {
                         let value = args.parse().map_err(|err| match err {
                             ValueParsingError::UnknownValue(invalid_const) => {
@@ -205,6 +232,21 @@ impl Display for Instruction {
             I::Not => write!(f, "Not"),
             I::Push => write!(f, "Push"),
             I::Pop => write!(f, "Pop"),
+            I::Pair => write!(f, "Pair"),    // Modif: Affichage de Pair
+            I::First => write!(f, "First"),  // Modif: Affichage de First
+            I::Second => write!(f, "Second"), // Modif: Affichage de Second
+            // Modif: Affichage de IsConsType avec le nom du type (pas Debug)
+            I::IsConsType(ct) => {
+                let type_name = match ct {
+                    ConstType::Int => "Int",
+                    ConstType::Float => "Float",
+                    ConstType::Bool => "Bool",
+                    ConstType::String => "String",
+                    ConstType::Pair => "Pair",
+                    _ => "Unknown",
+                };
+                write!(f, "IsConsType {}", type_name)
+            }
             I::Print => write!(f, "Print"),
             I::Ret => write!(f, "Ret"),
             I::Halt => write!(f, "Halt"),
