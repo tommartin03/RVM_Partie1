@@ -175,7 +175,8 @@ impl FromStr for Instruction {
                     }
 
                     // Modif: Parsing de IsConsType avec son argument de type
-                    "IsConsType" => {
+                    // Note: peut être appelé soit "IsConsType" soit "Is" dans les fichiers .tasm
+                    "IsConsType" | "Is" => {
                         let const_type = match args {
                             "Int" => ConstType::Int,
                             "Float" => ConstType::Float,

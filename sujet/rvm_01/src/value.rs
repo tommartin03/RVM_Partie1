@@ -92,13 +92,15 @@ impl Value {
     }
 
     // Modif: Nouvelle méthode pour vérifier le type d'une valeur (utilisée par IsConsType)
+    // Note: Nil (Pair(None)) n'est PAS considéré comme une paire pour Is Pair
     pub fn is_type(&self, const_type: ConstType) -> bool {
         match (self, const_type) {
             (Value::Int(_), ConstType::Int) => true,
             (Value::Float(_), ConstType::Float) => true,
             (Value::Bool(_), ConstType::Bool) => true,
             (Value::Str(_), ConstType::String) => true,
-            (Value::Pair(_), ConstType::Pair) => true,
+            (Value::Pair(Some(_)), ConstType::Pair) => true, // Modif: Seulement les paires non-vides
+            (Value::Pair(None), ConstType::Pair) => false,   // Modif: Nil n'est pas une paire
             _ => false,
         }
     }
