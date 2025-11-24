@@ -196,7 +196,8 @@ impl<'a> Display for PrintDisplay<'a> {
                             current = next.clone();
                         }
                         other => {
-                            write!(f, ", ")?;
+                            // Modif: Notation pointée pour paires impropres (a . b) où b n'est pas une paire/Nil
+                            write!(f, " . ")?;
                             match other {
                                 Value::Str(s) => write!(f, "\"{}\"", s)?,
                                 other => write!(f, "{}", other.as_printable())?,
