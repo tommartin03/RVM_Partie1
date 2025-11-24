@@ -184,7 +184,11 @@ impl<'a> Display for PrintDisplay<'a> {
                         write!(f, ", ")?;
                     }
                     first = false;
-                    write!(f, "{}", current.0.as_printable())?;
+                    // Modif: Affiche les strings avec guillemets dans les paires
+                    match &current.0 {
+                        Value::Str(s) => write!(f, "\"{}\"", s)?,
+                        other => write!(f, "{}", other.as_printable())?,
+                    }
                     
                     match &current.1 {
                         Value::Pair(None) => break,
@@ -192,7 +196,11 @@ impl<'a> Display for PrintDisplay<'a> {
                             current = next.clone();
                         }
                         other => {
-                            write!(f, ", {}", other.as_printable())?;
+                            write!(f, ", ")?;
+                            match other {
+                                Value::Str(s) => write!(f, "\"{}\"", s)?,
+                                other => write!(f, "{}", other.as_printable())?,
+                            }
                             break;
                         }
                     }
