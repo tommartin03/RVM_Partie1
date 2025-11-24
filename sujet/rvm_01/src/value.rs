@@ -174,7 +174,8 @@ impl<'a> Display for PrintDisplay<'a> {
             Value::Bool(value) => Display::fmt(value, f),
             Value::Str(value) => Display::fmt(value, f),
             // Modif: Affichage linéaire des paires pour l'instruction Print
-            Value::Pair(None) => write!(f, "Nil"),
+            // Modif: Nil (paire vide) affichée comme "()" et non "Nil" dans PrintDisplay
+            Value::Pair(None) => write!(f, "()"),
             Value::Pair(Some(rc)) => {
                 write!(f, "(")?;
                 let mut current = rc.clone();
