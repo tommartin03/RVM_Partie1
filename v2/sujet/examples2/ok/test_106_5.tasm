@@ -1,0 +1,353 @@
+Jump 343 # Main
+
+# Reverse (pair)
+# -> pair
+Push
+Const 0
+Jump 10 # Reverse Acc
+
+
+# Reverse Acc (pair, pair)
+# -> pair
+Push
+Get 1
+Is Pair
+
+Branch 23 # Reverse Acc End
+
+Pop
+Set 0
+Pop
+Ret
+
+# Reverse Acc End
+
+Get 1
+First
+Pair
+Push
+Get 1
+Second
+Set 1
+Pop
+Jump 10 # Reverse Acc
+
+Ret
+
+
+
+
+# Range (number)
+# -> pair
+Push
+Const Nil
+Jump 49 # Range Acc
+
+
+
+
+# Range Acc (pair, number)
+# -> pair
+Push
+Const 0
+Push
+Get 2
+Le
+
+Branch 75 # Range Acc Alt
+
+Get 1
+Pair
+Push
+
+Const 1
+Push
+Get 2
+Sub
+
+Set 1
+Pop
+
+Jump 49 # Range Acc
+
+# Range Acc Alt
+
+Const 0
+Pair
+Set 0
+Pop
+Ret
+
+
+# Print List (pair)
+# -> ()
+Push
+
+Const "["
+Print
+
+Get 0
+Is Pair
+Not
+
+Branch 104 # Print List End
+
+Get 0
+First
+Print
+
+Pop
+Second
+
+Call 111 # Print List Acc
+
+# Print List End
+
+Const "]\n"
+Print
+
+Ret
+
+# Print List Acc (pair)
+# -> ()
+
+Push
+Is Pair
+
+Branch 122 # Print List Acc Alt
+
+Pop
+Ret
+
+# Print List Acc Alt
+
+Const ", "
+Print
+Get 0
+First
+Print
+Get 0
+Second
+Set 0
+Pop
+Jump 111 # Print List Acc
+
+# Concat (pair, pair)
+# -> pair
+
+Push
+Push
+Get 2
+Set 1
+Get 0
+Is Pair
+
+Branch 168 # Concat Alt 1
+
+Get 1
+Is Pair
+
+Branch 157 # Concat Alt 2
+
+Pop
+Pop
+Pop
+Ret
+
+# Concat Alt 2
+
+Get 1
+First
+Set 2
+Get 1
+Second
+Set 1
+
+Jump 177 # Concat Alt 1 End
+
+# Concat Alt 1
+
+Get 0
+First
+Set 2
+Get 0
+Second
+Set 0
+
+# Concat Alt 1 End
+
+Pop
+Call 135 # Concat
+
+Push
+Get 1
+Pair
+Set 0
+Pop
+
+Ret
+
+# Merge Acc (pair, pair, pair)
+# -> pair
+
+Push
+
+Get 1
+Is Pair
+
+Branch 207 # Merge Acc Alt 1
+
+Pop
+Set 0
+Pop
+Call 3 # Reverse
+Call 135 # Concat
+Ret
+
+# Merge Acc Alt 1
+
+Get 2
+Is Pair
+
+Branch 221 # Merge Acc Alt 2
+
+Pop
+Call 3 # Reverse
+Call 135 # Concat
+Set 0
+Pop
+Ret
+
+# Merge Acc Alt 2
+
+Get 2
+First
+Push
+Get 2
+First
+Le
+
+Branch 241 # Merge Acc Alt 3
+
+Get 2
+First
+Push
+Get 3
+Second
+Set 3
+
+Jump 250 # Merge Acc Alt 3 End
+
+# Merge Acc Alt 3
+
+Get 1
+First
+Push
+Get 2
+Second
+Set 2
+
+# Merge Acc Alt 3 End
+
+Pop
+Pair
+Jump 190 # Merge Acc
+
+# Divide Acc (pair, pair pair)
+# -> pair, pair
+
+Push
+Is Pair
+
+Branch 270 # Divide Acc Alt
+
+# Divide Acc End
+
+Pop
+Pop
+Ret
+
+# Divide Acc Alt
+
+Get 1
+Push
+Get 1
+First
+Pair
+Set 1
+Pop
+Second
+
+Push
+Is Pair
+Not
+
+Branch 264 # Divide Acc End
+
+Get 2
+Push
+Get 1
+First
+Pair
+Set 2
+Pop
+Second
+
+Jump 256 # Divide Acc
+
+# Merge (pair, Pair)
+# -> pair
+
+Push
+Const Nil
+Jump 190 # Merge Acc
+
+# Divide (pair)
+# -> pair, pair
+Push
+Push
+Push
+Const Nil
+Set 1
+Set 2
+Pop
+Jump 256 # Devide Acc
+
+
+# Merge Sort (pair)
+# -> pair
+Push
+Second
+Is Pair
+
+Branch 328 # Merge Sort Alt
+
+Pop
+Ret
+
+# Merge Sort Alt
+Pop
+Call 305 # Devide
+Call  317 # Merge Sort
+
+Push
+Get 1
+
+Call 317 # Merge Sort
+
+Set 1
+Const Nil
+Jump 190 # Merge Acc
+
+# Main
+Const 600
+Call 40 # Range
+Call 305 # Divide
+Const 600
+Call 40 # Range
+Call 3 # Reverse
+Call 135 # Concat
+
+Call 317 # Merge Sort
+Call 82 # Print List
+Halt

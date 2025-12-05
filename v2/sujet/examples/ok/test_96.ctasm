@@ -1,0 +1,35 @@
+Const false
+Push
+Push
+Push
+Push
+Push
+Call 26
+Branch 23
+PushReg 4
+PushReg 4
+PushReg 4
+PushReg 4
+Get 4
+Not
+Set 8
+PopSet 3
+PopSet 3
+PopSet 3
+PopSet 3
+Const "Loop\n"
+Print
+Jump 7
+Const "Fin\n"
+Print
+Halt
+PushReg 4
+PushReg 4
+PushReg 4
+PushReg 4
+Get 4
+And
+And
+And
+And
+Ret

@@ -1,0 +1,51 @@
+
+# [n, acc, i]
+# [21, 1, 1]
+Const 21
+Push
+Const 1
+Push
+Const 1
+Push
+
+# branch here
+
+# get i
+Get 0
+# [n, acc, i, i]
+Push
+# get acc
+Get 2
+# [n, acc, i, i], acc
+Mul
+# [n, acc, i], acc * i
+Set 1
+# [n, acc * i, i]
+
+Const 1
+# [n, acc * i, i], 1
+Add
+# [n, acc * i], i + 1
+Push
+# [n, acc * i, i + 1]
+
+# get n
+Get 2
+Push
+# [n, acc * i, i + 1, n]
+# get i
+Get 1
+# [n, acc * i, i + 1, n], i
+Le
+# [n, acc * i, i + 1], i <= n
+Branch 11
+
+# get acc
+Get 1
+Print
+
+Const "\n"
+Print
+
+Halt
+

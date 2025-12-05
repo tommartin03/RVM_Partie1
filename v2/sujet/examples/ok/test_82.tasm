@@ -1,0 +1,45 @@
+Const false
+
+Push
+Push
+Push
+
+# Loop
+
+Call 36
+
+Branch 30
+
+Get 2
+Push
+Get 2
+Push
+Get 2
+Not
+Set 4
+Pop
+Set 1
+Pop
+Set 1
+
+Const "Loop\n"
+Print
+
+Jump 7
+
+# End of program
+
+Const "Fin\n"
+Print
+Halt
+
+# AND3
+
+Get 2
+Push
+Get 2
+Push
+Get 2
+And
+And
+Ret

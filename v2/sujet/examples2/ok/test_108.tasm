@@ -1,0 +1,49 @@
+Jump 42 # Main
+
+# Range Custom (number)
+# -> pair
+Push
+Const Nil
+Jump 10 # Range Acc
+
+
+# Range Acc Custom (pair, number)
+# -> pair
+Push
+Const 0
+Push
+Get 2
+Le
+
+Branch 34 # Range Acc Alt
+
+Get 1
+Push
+Get 1
+Pair
+Set 0
+Const 1
+Push
+Get 2
+Sub
+Set 1
+Pop
+
+Jump 10 # Range Acc
+
+# Range Acc Alt
+
+Pop
+Pair
+Ret
+
+
+
+
+# Main
+Const 100
+Call 3 # Range Custom
+Print
+Const "\n"
+Print
+Halt

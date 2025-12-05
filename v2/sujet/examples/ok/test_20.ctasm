@@ -1,0 +1,5 @@
+Const "Hello,"
+Print
+Const " World !\n"
+Print
+Halt

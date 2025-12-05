@@ -1,0 +1,29 @@
+Const 15
+Call 7
+Print
+Const "\n"
+Print
+Halt
+Push
+Push
+Const 1
+Lt
+Branch 15
+Pop
+Const 1
+Ret
+Const 2
+Push
+Get 1
+Sub
+Call 7
+Push
+Const 1
+Push
+Get 2
+Sub
+Call 7
+Add
+Set 0
+Pop
+Ret
