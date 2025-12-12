@@ -7,6 +7,8 @@ pub struct Context {
     pub stack: Vec<Value>,
     pub current: Value,
     pub call_stack: Vec<Addr>,
+    // MODIF: Ajout du champ memory pour gérer les paires
+    pub memory: Memory,
 }
 
 impl Context {
@@ -29,6 +31,7 @@ impl Context {
         }
         Ok(values)
     }
+    
     /// Executes an instruction and updates the context
     fn execute_instruction(&mut self, op: &Instruction) -> Result<(), ContextUpdateError> {
         use Instruction as Op;
@@ -96,7 +99,7 @@ impl Context {
 
                 trace!("Result of {:?} => {:?}", op, self.current);
             }
-            // MODIF: ajout de .clone() pour éviter le move de op1 et op2 lors de la création d’erreurs
+            // MODIF: ajout de .clone() pour éviter le move de op1 et op2 lors de la création d'erreurs
             Op::And | Op::Or => {
                 let [op1, op2] = self.take_ops()?;
                 debug!("Operands: {:?}, {:?}", op1, op2);
@@ -118,7 +121,7 @@ impl Context {
                 self.current = res;
                 trace!("Result of {:?} => {:?}", op, self.current);
             }
-             // Modif: On récupère d'abord le booléen réel de l'opérande dans b, puis on inverse sa valeur
+            // Modif: On récupère d'abord le booléen réel de l'opérande dans b, puis on inverse sa valeur
             Op::Not => {
                 let [operand] = self.take_ops()?;
                 let b = operand.to_bool().ok_or(ContextUpdateError::TypeError {
@@ -139,8 +142,8 @@ impl Context {
                 trace!("Popped {:?} from stack", self.current);
             }
             // MODIF: ajout de PushReg et PopSet
-            // PushReg : duplique la valeur d’un registre sur la pile
-            // PopSet  : retire le sommet de pile et l’écrit dans un registre
+            // PushReg : duplique la valeur d'un registre sur la pile
+            // PopSet  : retire le sommet de pile et l'écrit dans un registre
             &Op::PushReg(idx) => {
                 let reg_index = idx.0 as usize;
                 if reg_index < self.stack.len() {
@@ -155,7 +158,7 @@ impl Context {
             }
             &Op::PopSet(idx) => {
                 let reg_index = idx.0 as usize;
-                if reg_index >= self.stack.len() - 1 {
+                if reg_index >= self.stack.len() {
                     error!("Invalid PopSet index: {}", reg_index);
                     return Err(ContextUpdateError::RegOutOfIndex { reg_index });
                 }
@@ -171,7 +174,7 @@ impl Context {
             &Op::Get(idx) => {
                 let reg_index = idx.0 as usize;
                 if reg_index < self.stack.len() {
-                    let stack_idx = self.stack.len() - 1 - reg_index; // <--- mise à jour à l'index correct
+                    let stack_idx = self.stack.len() - 1 - reg_index;
                     self.current = self.stack[stack_idx].clone();
                     trace!("Get register {} => {:?}", reg_index, self.current);
                 } else {
@@ -182,7 +185,7 @@ impl Context {
             &Op::Set(idx) => {
                 let reg_index = idx.0 as usize;
                 if reg_index < self.stack.len() {
-                    let stack_idx = self.stack.len() - 1 - reg_index; // <--- mise à jour à l'index correct
+                    let stack_idx = self.stack.len() - 1 - reg_index;
                     self.stack[stack_idx] = self.current.clone();
                     trace!("Set register {} <= {:?}", reg_index, self.current);
                 } else {
@@ -191,7 +194,8 @@ impl Context {
                 }
             }
             Op::Print => {
-                print!("{}", &self.current.as_printable());
+                // MODIF: Gestion spéciale de l'affichage pour les paires et Nil
+                self.print_value(&self.current);
                 info!("Print instruction => {}", self.current.as_printable());
             }
 
@@ -221,7 +225,7 @@ impl Context {
                 }
             }
             Op::Ret => {
-                // MODIF: on remplace .unwrap() sur call_stack.pop() par une gestion d’erreur propre
+                // MODIF: on remplace .unwrap() sur call_stack.pop() par une gestion d'erreur propre
                 let ret_addr = self.call_stack.pop().ok_or(ContextUpdateError::MissingOperand {
                     ops_found: 0,
                     ops_needed: 1,
@@ -235,6 +239,51 @@ impl Context {
                 self.current = value.clone();
                 trace!("Load constant => {:?}", self.current);
             }
+            // MODIF: Ajout de l'instruction Pair - crée une paire (car, cdr) et alloue en mémoire
+            // Prend deux valeurs : stack.pop() (car) et current (cdr)
+            // Résultat : Value::Pair(PairId)
+            Op::Pair => {
+                let [cdr, car] = self.take_ops()?;
+                // MODIF: Inversion pour respecter la convention (car, cdr) = (élément, reste)
+                debug!("Creating pair: car={:?}, cdr={:?}", cdr, car);
+                
+                let pair_id = self.memory.alloc(cdr, car);  
+                self.current = Value::Pair(pair_id);
+                
+                trace!("Pair created => {:?}", self.current);
+            }
+            // MODIF: Ajout de l'instruction Car - extrait le premier élément d'une paire
+            Op::Car => {
+                let [pair_value] = self.take_ops()?;
+                debug!("Car operation on: {:?}", pair_value);
+                
+                let pair_id = pair_value.to_pair_id().ok_or(ContextUpdateError::TypeError {
+                    op_num: 1,
+                    operand: pair_value.clone(),
+                    expected_value: ConstType::Nil,
+                })?;
+                
+                self.current = self.memory.get_car(pair_id)
+                    .map_err(|_| ContextUpdateError::InvalidPairAccess { pair_id: pair_id.0 })?;
+                
+                trace!("Car => {:?}", self.current);
+            }
+            // MODIF: Ajout de l'instruction Cdr - extrait le second élément d'une paire
+            Op::Cdr => {
+                let [pair_value] = self.take_ops()?;
+                debug!("Cdr operation on: {:?}", pair_value);
+                
+                let pair_id = pair_value.to_pair_id().ok_or(ContextUpdateError::TypeError {
+                    op_num: 1,
+                    operand: pair_value.clone(),
+                    expected_value: ConstType::Nil,
+                })?;
+                
+                self.current = self.memory.get_cdr(pair_id)
+                    .map_err(|_| ContextUpdateError::InvalidPairAccess { pair_id: pair_id.0 })?;
+                
+                trace!("Cdr => {:?}", self.current);
+            }
             Op::Noop => trace!("Noop"),
             Op::Halt => {
                 info!("Halt instruction encountered. Stopping execution.");
@@ -242,6 +291,54 @@ impl Context {
             }
         };
         Ok(())
+    }
+
+    // MODIF: Fonction récursive pour afficher les listes chaînées de paires
+    // Affiche une paire sous forme de liste Lisp : (elem1, elem2, ..., elemN)
+    fn print_value(&self, value: &Value) {
+        match value {
+            Value::Pair(pair_id) => {
+                print!("(");
+                self.print_list(*pair_id, true);
+                print!(")");
+            }
+            Value::Nil => print!("Nil"),
+            _ => print!("{}", value.as_printable()),
+        }
+    }
+
+    // MODIF: Fonction récursive pour afficher le contenu d'une liste chaînée
+    // first: indique si c'est le premier élément (pour éviter la virgule initiale)
+    fn print_list(&self, pair_id: PairId, first: bool) {
+        if let Ok(pair) = self.memory.get(pair_id) {
+            // Afficher le car
+            if !first {
+                print!(", ");
+            }
+            match &pair.car {
+                Value::Pair(inner_pair_id) => {
+                    print!("(");
+                    self.print_list(*inner_pair_id, true);
+                    print!(")");
+                }
+                _ => print!("{}", pair.car.as_printable()),
+            }
+
+            // Gérer le cdr
+            match &pair.cdr {
+                Value::Pair(next_pair_id) => {
+                    // Liste chaînée continue
+                    self.print_list(*next_pair_id, false);
+                }
+                Value::Nil => {
+                    // Fin de la liste chaînée normale
+                }
+                other => {
+                    // Paire impropre (dotted pair)
+                    print!(", {}", other.as_printable());
+                }
+            }
+        }
     }
 }
 
@@ -252,6 +349,8 @@ impl Context {
             stack: Vec::new(),
             current: Value::Int(0),
             call_stack: Vec::new(),
+            // MODIF: Initialisation de la mémoire
+            memory: Memory::new(),
         }
     }
 }
@@ -268,6 +367,7 @@ impl OpVM {
             context: Context::new(Addr::InstructionIdx(0)),
         }
     }
+    
     /// Main VM function, loop through instructions, updating the context, while there is no Halt instruction
     pub fn run(&mut self) -> Result<(), ExecutionError> {
         loop {
@@ -316,6 +416,12 @@ impl OpVM {
                             instruction: instruction.to_owned(),
                             stack_len: self.context.stack.len(),
                             reg_index,
+                        },
+                        // MODIF: Ajout de la gestion d'erreur pour InvalidPairAccess
+                        ContextUpdateError::InvalidPairAccess { pair_id } => ExecutionError::InvalidPairAccess {
+                            location,
+                            instruction: instruction.to_owned(),
+                            pair_id,
                         },
                         ContextUpdateError::HaltExecution => unreachable!(),
                     });

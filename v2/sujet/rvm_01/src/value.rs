@@ -1,12 +1,20 @@
 use crate::inner_prelude::*;
 use std::{fmt::Display, str::FromStr};
 
+// MODIF: Ajout du type PairId pour référencer une paire dans la mémoire
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PairId(pub usize);
+
 #[derive(Debug, Clone)]
 pub enum Value {
     Int(i64),
     Float(f64), // <-- ajout de la variante Float
     Bool(bool),
     Str(String),
+    // MODIF: Ajout de la variante Pair qui contient un PairId (référence vers la mémoire)
+    Pair(PairId),
+    // MODIF: Ajout de la variante Nil pour représenter une paire vide
+    Nil,
 }
 
 impl Default for Value {
@@ -45,9 +53,22 @@ impl Value {
         }
     }
 
-    pub(crate) fn as_printable(&self) -> PrintDisplay {
-        PrintDisplay(self)
+    // MODIF: Ajout d'une méthode pour extraire le PairId
+    pub fn to_pair_id(&self) -> Option<PairId> {
+        match self {
+            Value::Pair(id) => Some(*id),
+            _ => None,
+        }
     }
+
+    // MODIF: Ajout d'une méthode pour vérifier si la valeur est Nil
+    pub fn is_nil(&self) -> bool {
+        matches!(self, Value::Nil)
+    }
+
+    pub(crate) fn as_printable(&self) -> PrintDisplay<'_> {
+        PrintDisplay(self)
+    }   
 
     pub fn take(&mut self) -> Self {
         std::mem::take(self)
@@ -66,6 +87,9 @@ pub enum ConstType {
     IntI8 = 200, // 200
     IntI16,      // 201
     IntI32,      // 202
+    
+    // MODIF: Ajout du type Nil
+    Nil = 20, // 20
 }
 
 impl Display for Value {
@@ -75,6 +99,9 @@ impl Display for Value {
             Value::Float(value) => Display::fmt(value, f),
             Value::Bool(value) => Display::fmt(value, f),
             Value::Str(value) => Display::fmt(&value.replace("\n", "\\n").replace("\t", "\\t"), f),
+            // MODIF: Affichage des paires et de Nil
+            Value::Pair(id) => write!(f, "Pair({})", id.0),
+            Value::Nil => write!(f, "Nil"),
         }
     }
 }
@@ -88,6 +115,9 @@ impl<'a> Display for PrintDisplay<'a> {
             Value::Float(value) => Display::fmt(value, f),
             Value::Bool(value) => Display::fmt(value, f),
             Value::Str(value) => Display::fmt(value, f),
+            // MODIF: Affichage des paires et de Nil pour Print
+            Value::Pair(id) => write!(f, "Pair({})", id.0),
+            Value::Nil => write!(f, "Nil"),
         }
     }
 }
@@ -95,7 +125,10 @@ impl<'a> Display for PrintDisplay<'a> {
 impl FromStr for Value {
     type Err = ValueParsingError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if let Ok(value) = bool::from_str(s) {
+        // MODIF: Ajout du parsing pour Nil
+        if s == "Nil" {
+            Ok(Value::Nil)
+        } else if let Ok(value) = bool::from_str(s) {
             Ok(Value::Bool(value))
         } else if let Ok(value) = i64::from_str(s) {
             Ok(Value::Int(value))

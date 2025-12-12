@@ -130,7 +130,24 @@ fn handle_vm_result(path: &OsStr, vm: &mut OpVM) -> bool {
             stack_len,
         } => {
             print_exit_on_error(&path, false, location, &instruction.to_string(), &format!("Invalid register access: targeting register {reg_index}, but there are only {stack_len} registers in stack"));
-        }}; false
+        }
+        // MODIF: Ajout de la gestion de l'erreur InvalidPairAccess dans le main
+        ExecutionError::InvalidPairAccess {
+            location,
+            instruction,
+            pair_id,
+        } => {
+            print_exit_on_error(
+                &path,
+                false,
+                location,
+                &instruction.to_string(),
+                &format!(
+                    "Invalid pair access: tried to access pair with id {pair_id}, but it doesn't exist or was freed"
+                ),
+            );
+        }
+    }; false
     }).is_ok()
 }
 

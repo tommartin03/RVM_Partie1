@@ -56,6 +56,10 @@ pub(crate) enum ContextUpdateError {
     RegOutOfIndex {
         reg_index: usize,
     },
+    // MODIF: Nouvelle variante pour les erreurs d'accès aux paires
+    InvalidPairAccess {
+        pair_id: usize,
+    },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -64,6 +68,8 @@ pub struct Location {
     pub column: usize,
 }
 
+// MODIF: Correction de la définition de l'enum ExecutionError
+// La syntaxe était invalide (mélange de définition et de code d'affichage)
 #[derive(Debug, Clone)]
 pub enum ExecutionError {
     TypeError {
@@ -85,4 +91,62 @@ pub enum ExecutionError {
         stack_len: usize,
         reg_index: usize,
     },
+    // MODIF: Nouvelle variante pour les erreurs d'accès aux paires en mémoire
+    // Syntaxe corrigée : c'était une définition d'enum, pas du code exécutable
+    InvalidPairAccess {
+        location: Location,
+        instruction: Instruction,
+        pair_id: usize,
+    },
 }
+
+// MODIF: Ajout de l'affichage pour InvalidPairAccess
+impl std::fmt::Display for ExecutionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ExecutionError::TypeError {
+                location,
+                instruction,
+                op_num,
+                operand,
+                expected_type,
+            } => write!(
+                f,
+                "Type error at {}:{} in instruction '{}': operand {} has value {:?} but expected type {:?}",
+                location.line, location.column, instruction, op_num, operand, expected_type
+            ),
+            ExecutionError::MissingOperand {
+                location,
+                instruction,
+                ops_found,
+                ops_needed,
+            } => write!(
+                f,
+                "Missing operand at {}:{} in instruction '{}': found {} operand(s) but needed {}",
+                location.line, location.column, instruction, ops_found, ops_needed
+            ),
+            ExecutionError::RegOutOfIndex {
+                location,
+                instruction,
+                stack_len,
+                reg_index,
+            } => write!(
+                f,
+                "Register out of bounds at {}:{} in instruction '{}': tried to access register {} but stack has only {} elements",
+                location.line, location.column, instruction, reg_index, stack_len
+            ),
+            // MODIF: Affichage de l'erreur InvalidPairAccess
+            ExecutionError::InvalidPairAccess {
+                location,
+                instruction,
+                pair_id,
+            } => write!(
+                f,
+                "Invalid pair access at {}:{} in instruction '{}': tried to access pair with id {} but it doesn't exist or was freed",
+                location.line, location.column, instruction, pair_id
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ExecutionError {}

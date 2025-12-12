@@ -64,6 +64,13 @@ pub enum Instruction {
 
     Const(Value),
 
+    // MODIF: Ajout de l'instruction Pair pour créer une paire (car, cdr)
+    Pair,
+    // MODIF: Ajout de l'instruction Car pour extraire le premier élément d'une paire
+    Car,
+    // MODIF: Ajout de l'instruction Cdr pour extraire le second élément d'une paire
+    Cdr,
+
     Noop,
     Halt,
 }
@@ -124,6 +131,10 @@ impl FromStr for Instruction {
             "Print" => I::Print,
             "Ret" => I::Ret,
             "Halt" => I::Halt,
+            // MODIF: Ajout du parsing pour les instructions Pair, Car, Cdr
+            "Pair" => I::Pair,
+            "Car" => I::Car,
+            "Cdr" => I::Cdr,
             _ => {
                 let (operator, args) = trimmed_s
                     .split_once(|c: char| c.is_whitespace())
@@ -221,6 +232,10 @@ impl Display for Instruction {
                 value.replace("\n", "\\n").replace("\t", "\\t")
             ),
             I::Const(value) => write!(f, "Const {}", value),
+            // MODIF: Ajout de l'affichage pour Pair, Car, Cdr
+            I::Pair => write!(f, "Pair"),
+            I::Car => write!(f, "Car"),
+            I::Cdr => write!(f, "Cdr"),
         }
     }
 }
