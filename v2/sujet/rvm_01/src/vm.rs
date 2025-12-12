@@ -284,6 +284,59 @@ impl Context {
                 
                 trace!("Cdr => {:?}", self.current);
             }
+            &Op::Is(const_type) => {
+                let [operand] = self.take_ops()?;
+                debug!("Is {:?} operation on: {:?}", const_type, operand);
+                
+                let result = match const_type {
+                    ConstType::Nil => {
+                        // "Is Pair" vérifie si la valeur est une paire
+                        matches!(operand, Value::Pair(_))
+                    }
+                    ConstType::Int => operand.to_int().is_some(),
+                    ConstType::Float => operand.to_float().is_some(),
+                    ConstType::Bool => operand.to_bool().is_some(),
+                    ConstType::String => operand.as_str().is_some(),
+                    _ => false,
+                };
+                
+                self.current = Value::Bool(result);
+                trace!("Is check => {:?}", self.current);
+            }
+            
+            // MODIF: Ajout de l'instruction First (alias pour Car)
+            Op::First => {
+                let [pair_value] = self.take_ops()?;
+                debug!("First operation on: {:?}", pair_value);
+                
+                let pair_id = pair_value.to_pair_id().ok_or(ContextUpdateError::TypeError {
+                    op_num: 1,
+                    operand: pair_value.clone(),
+                    expected_value: ConstType::Nil,
+                })?;
+                
+                self.current = self.memory.get_car(pair_id)
+                    .map_err(|_| ContextUpdateError::InvalidPairAccess { pair_id: pair_id.0 })?;
+                
+                trace!("First => {:?}", self.current);
+            }
+            
+            // MODIF: Ajout de l'instruction Second (alias pour Cdr)
+            Op::Second => {
+                let [pair_value] = self.take_ops()?;
+                debug!("Second operation on: {:?}", pair_value);
+                
+                let pair_id = pair_value.to_pair_id().ok_or(ContextUpdateError::TypeError {
+                    op_num: 1,
+                    operand: pair_value.clone(),
+                    expected_value: ConstType::Nil,
+                })?;
+                
+                self.current = self.memory.get_cdr(pair_id)
+                    .map_err(|_| ContextUpdateError::InvalidPairAccess { pair_id: pair_id.0 })?;
+                
+                trace!("Second => {:?}", self.current);
+            }
             Op::Noop => trace!("Noop"),
             Op::Halt => {
                 info!("Halt instruction encountered. Stopping execution.");
@@ -309,6 +362,8 @@ impl Context {
 
     // MODIF: Fonction récursive pour afficher le contenu d'une liste chaînée
     // first: indique si c'est le premier élément (pour éviter la virgule initiale)
+    // CORRECTION: Utiliser Display au lieu de as_printable() pour afficher les strings avec guillemets
+    // CORRECTION 2: Utiliser la notation "dotted pair" (point) pour les paires impropres
     fn print_list(&self, pair_id: PairId, first: bool) {
         if let Ok(pair) = self.memory.get(pair_id) {
             // Afficher le car
@@ -321,7 +376,9 @@ impl Context {
                     self.print_list(*inner_pair_id, true);
                     print!(")");
                 }
-                _ => print!("{}", pair.car.as_printable()),
+                // CORRECTION: Utiliser Display directement pour préserver les guillemets des strings
+                Value::Str(s) => print!("\"{}\"", s),
+                other => print!("{}", other.as_printable()),
             }
 
             // Gérer le cdr
@@ -331,11 +388,16 @@ impl Context {
                     self.print_list(*next_pair_id, false);
                 }
                 Value::Nil => {
-                    // Fin de la liste chaînée normale
+                    // Fin de la liste chaînée normale (proper list)
                 }
                 other => {
-                    // Paire impropre (dotted pair)
-                    print!(", {}", other.as_printable());
+                    // Paire impropre (dotted pair) : utiliser " . " au lieu de ", "
+                    // CORRECTION: Utiliser la notation avec point pour les paires impropres
+                    if let Value::Str(s) = other {
+                        print!(" . \"{}\"", s);
+                    } else {
+                        print!(" . {}", other.as_printable());
+                    }
                 }
             }
         }

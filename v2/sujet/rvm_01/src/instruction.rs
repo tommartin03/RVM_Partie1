@@ -70,6 +70,11 @@ pub enum Instruction {
     Car,
     // MODIF: Ajout de l'instruction Cdr pour extraire le second élément d'une paire
     Cdr,
+    
+    // MODIF: Ajout des instructions Is, First, Second
+    Is(ConstType),  // Vérifie le type d'une valeur (Is Pair, Is Int, etc.)
+    First,          // Alias pour Car - extrait le premier élément d'une paire
+    Second,         // Alias pour Cdr - extrait le second élément d'une paire
 
     Noop,
     Halt,
@@ -135,6 +140,9 @@ impl FromStr for Instruction {
             "Pair" => I::Pair,
             "Car" => I::Car,
             "Cdr" => I::Cdr,
+            // MODIF: Ajout du parsing pour First et Second
+            "First" => I::First,
+            "Second" => I::Second,
             _ => {
                 let (operator, args) = trimmed_s
                     .split_once(|c: char| c.is_whitespace())
@@ -174,6 +182,25 @@ impl FromStr for Instruction {
                             "Branch" => I::Branch(Addr::InstructionIdx(addr - 1)),
                             _ => unreachable!(),
                         }
+                    }
+
+                    // MODIF: Ajout du parsing pour "Is"
+                    "Is" => {
+                        let const_type = match args {
+                            "Pair" => ConstType::Nil,  // On utilise Nil pour vérifier les paires
+                            "Int" => ConstType::Int,
+                            "Float" => ConstType::Float,
+                            "Bool" => ConstType::Bool,
+                            "String" => ConstType::String,
+                            "Nil" => ConstType::Nil,
+                            _ => {
+                                return Err(InstructionParsingError::InvalidArg {
+                                    column: operator.len() + 2,
+                                    arg: args.to_owned(),
+                                })
+                            }
+                        };
+                        I::Is(const_type)
                     }
 
                     "Const" => {
@@ -236,6 +263,20 @@ impl Display for Instruction {
             I::Pair => write!(f, "Pair"),
             I::Car => write!(f, "Car"),
             I::Cdr => write!(f, "Cdr"),
+            // MODIF: Ajout de l'affichage pour Is, First, Second
+            I::Is(const_type) => {
+                let type_name = match const_type {
+                    ConstType::Nil => "Pair",  // "Is Pair" vérifie si c'est une paire
+                    ConstType::Int => "Int",
+                    ConstType::Float => "Float",
+                    ConstType::Bool => "Bool",
+                    ConstType::String => "String",
+                    _ => "Unknown",
+                };
+                write!(f, "Is {}", type_name)
+            }
+            I::First => write!(f, "First"),
+            I::Second => write!(f, "Second"),
         }
     }
 }
