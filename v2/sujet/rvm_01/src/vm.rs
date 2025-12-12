@@ -353,7 +353,7 @@ impl Context {
         match value {
             Value::Pair(pair_id) => {
                 print!("(");
-                self.print_list(*pair_id, true);
+                self.print_list_iterative(*pair_id);
                 print!(")");
             }
             // CORRECTION: Afficher Nil comme une liste vide ()
@@ -362,26 +362,33 @@ impl Context {
         }
     }
 
-    // MODIF: Fonction récursive pour afficher le contenu d'une liste chaînée
-    // first: indique si c'est le premier élément (pour éviter la virgule initiale)
-    // CORRECTION: Utiliser Display au lieu de as_printable() pour afficher les strings avec guillemets
-    // CORRECTION 2: Utiliser la notation "dotted pair" (point) pour les paires impropres
-    // CORRECTION 3: Afficher Nil comme () dans les listes
-    fn print_list(&self, pair_id: PairId, first: bool) {
-        if let Ok(pair) = self.memory.get(pair_id) {
+    // MODIF: Version itérative (non récursive) pour éviter le stack overflow sur de grandes listes
+    // Remplace print_list pour gérer efficacement des listes de 100 000+ éléments
+    fn print_list_iterative(&self, start_pair_id: PairId) {
+        let mut current_pair_id = start_pair_id;
+        let mut first = true;
+
+        loop {
+            // Récupérer la paire courante
+            let Ok(pair) = self.memory.get(current_pair_id) else {
+                break;
+            };
+
             // Afficher le car
             if !first {
                 print!(", ");
             }
+            first = false;
+
             match &pair.car {
                 Value::Pair(inner_pair_id) => {
+                    // Pour les paires imbriquées dans le car, on utilise la récursion
+                    // (peu probable d'avoir une profondeur excessive ici)
                     print!("(");
-                    self.print_list(*inner_pair_id, true);
+                    self.print_list_iterative(*inner_pair_id);
                     print!(")");
                 }
-                // CORRECTION: Utiliser Display directement pour préserver les guillemets des strings
                 Value::Str(s) => print!("\"{}\"", s),
-                // CORRECTION: Afficher Nil comme () (liste vide)
                 Value::Nil => print!("()"),
                 other => print!("{}", other.as_printable()),
             }
@@ -389,21 +396,21 @@ impl Context {
             // Gérer le cdr
             match &pair.cdr {
                 Value::Pair(next_pair_id) => {
-                    // Liste chaînée continue
-                    self.print_list(*next_pair_id, false);
+                    // Liste chaînée continue : on itère
+                    current_pair_id = *next_pair_id;
                 }
                 Value::Nil => {
                     // Fin de la liste chaînée normale (proper list)
+                    break;
                 }
                 other => {
-                    // Paire impropre (dotted pair) : utiliser " . " au lieu de ", "
-                    // CORRECTION: Utiliser la notation avec point pour les paires impropres
+                    // Paire impropre (dotted pair) : afficher avec " . " et terminer
                     match other {
                         Value::Str(s) => print!(" . \"{}\"", s),
-                        // CORRECTION: Afficher Nil comme () dans les dotted pairs aussi
                         Value::Nil => print!(" . ()"),
                         _ => print!(" . {}", other.as_printable()),
                     }
+                    break;
                 }
             }
         }
