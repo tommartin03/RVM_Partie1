@@ -348,6 +348,7 @@ impl Context {
 
     // MODIF: Fonction récursive pour afficher les listes chaînées de paires
     // Affiche une paire sous forme de liste Lisp : (elem1, elem2, ..., elemN)
+    // CORRECTION: Nil s'affiche comme () (liste vide) et non comme "Nil"
     fn print_value(&self, value: &Value) {
         match value {
             Value::Pair(pair_id) => {
@@ -355,7 +356,8 @@ impl Context {
                 self.print_list(*pair_id, true);
                 print!(")");
             }
-            Value::Nil => print!("Nil"),
+            // CORRECTION: Afficher Nil comme une liste vide ()
+            Value::Nil => print!("()"),
             _ => print!("{}", value.as_printable()),
         }
     }
@@ -364,6 +366,7 @@ impl Context {
     // first: indique si c'est le premier élément (pour éviter la virgule initiale)
     // CORRECTION: Utiliser Display au lieu de as_printable() pour afficher les strings avec guillemets
     // CORRECTION 2: Utiliser la notation "dotted pair" (point) pour les paires impropres
+    // CORRECTION 3: Afficher Nil comme () dans les listes
     fn print_list(&self, pair_id: PairId, first: bool) {
         if let Ok(pair) = self.memory.get(pair_id) {
             // Afficher le car
@@ -378,6 +381,8 @@ impl Context {
                 }
                 // CORRECTION: Utiliser Display directement pour préserver les guillemets des strings
                 Value::Str(s) => print!("\"{}\"", s),
+                // CORRECTION: Afficher Nil comme () (liste vide)
+                Value::Nil => print!("()"),
                 other => print!("{}", other.as_printable()),
             }
 
@@ -393,10 +398,11 @@ impl Context {
                 other => {
                     // Paire impropre (dotted pair) : utiliser " . " au lieu de ", "
                     // CORRECTION: Utiliser la notation avec point pour les paires impropres
-                    if let Value::Str(s) = other {
-                        print!(" . \"{}\"", s);
-                    } else {
-                        print!(" . {}", other.as_printable());
+                    match other {
+                        Value::Str(s) => print!(" . \"{}\"", s),
+                        // CORRECTION: Afficher Nil comme () dans les dotted pairs aussi
+                        Value::Nil => print!(" . ()"),
+                        _ => print!(" . {}", other.as_printable()),
                     }
                 }
             }
